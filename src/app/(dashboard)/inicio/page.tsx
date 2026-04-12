@@ -43,7 +43,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-gray-900">Bienvenido, Dr. Alfaro</h1>
+          <h1 className="text-3xl font-headline font-bold text-gray-900">Bienvenido, Dr. Solano</h1>
           <p className="text-gray-500 mt-1">Aquí está lo que está pasando hoy en su consultorio.</p>
         </div>
         <div className="flex gap-3">
