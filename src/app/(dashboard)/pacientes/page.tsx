@@ -1,10 +1,12 @@
+
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, MoreHorizontal, User } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -121,15 +123,6 @@ export default function PatientsPage() {
             ))}
           </TableBody>
         </Table>
-        {mockPatients.length === 0 && (
-          <div className="p-12 text-center">
-             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-gray-300" />
-             </div>
-             <h3 className="text-lg font-semibold text-gray-900">No se encontraron pacientes</h3>
-             <p className="text-gray-500 mt-1">Intenta ajustar tu búsqueda o crea un nuevo paciente.</p>
-          </div>
-        )}
       </div>
     </div>
   );
