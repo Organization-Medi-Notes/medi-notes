@@ -50,7 +50,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidad</Label>
-                    <Input defaultValue="Cardiología" />
+                    <Input defaultValue="Pediatra" />
                   </div>
                   <div className="space-y-2">
                     <Label>Cédula Profesional</Label>

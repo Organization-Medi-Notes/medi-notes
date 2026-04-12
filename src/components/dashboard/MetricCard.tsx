@@ -17,8 +17,8 @@ export function MetricCard({ title, value, change, trend, icon: Icon, colorClass
         <Icon className="w-6 h-6" />
       </div>
       <div>
-        <p className="text-sm font-medium text-color-text-secondary">{title}</p>
-        <h3 className="text-2xl font-bold mt-1 text-color-text-primary">{value}</h3>
+        <p className="text-sm font-medium text-gray-500">{title}</p>
+        <h3 className="text-2xl font-bold mt-1 text-gray-900">{value}</h3>
         {change && (
           <div className="flex items-center gap-1 mt-1">
             <span className={cn(
@@ -27,7 +27,7 @@ export function MetricCard({ title, value, change, trend, icon: Icon, colorClass
             )}>
               {change}
             </span>
-            <span className="text-xs text-color-text-muted">vs mes pasado</span>
+            <span className="text-xs text-gray-400">vs mes pasado</span>
           </div>
         )}
       </div>

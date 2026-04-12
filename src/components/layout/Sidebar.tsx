@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/inicio" },
   { icon: Users, label: "Pacientes", href: "/pacientes" },
   { icon: Calendar, label: "Calendario", href: "/calendario" },
   { icon: ClipboardList, label: "Citas", href: "/citas" },
@@ -76,8 +76,8 @@ export function Sidebar() {
             <AvatarFallback className="bg-primary text-white text-xs">DR</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">Dr. Rodrigo Alfaro</p>
-            <p className="text-[10px] text-sidebar-foreground truncate uppercase tracking-widest">Cardiología</p>
+            <p className="text-sm font-semibold text-white truncate">Dra. Natalia Solano</p>
+            <p className="text-[10px] text-sidebar-foreground truncate uppercase tracking-widest">Pediatra</p>
           </div>
           <button className="text-sidebar-foreground hover:text-white transition-colors">
             <LogOut className="w-4 h-4" />
