@@ -63,6 +63,25 @@ Esto abrirá el **Genkit Developer UI** en el puerto **4000**.
 
 ---
 
+## Rutas de la Aplicación
+
+Estas rutas utilizan el diseño principal con la barra lateral izquierda:
+
+- `/` — Ruta raíz. Está configurada para redirigir automáticamente a `/inicio`.
+- `/inicio` — El Panel de Control (Dashboard) principal con métricas, citas del día y actividad reciente.
+- `/pacientes` — Módulo de gestión donde se listan y buscan los pacientes registrados.
+- `/calendario` — Vista de calendario interactivo para organizar las consultas.
+- `/citas` — Listado detallado y gestión administrativa de las citas programadas.
+- `/expedientes` — Acceso al historial clínico y notas médicas de los pacientes.
+- `/reportes` — Sección de analítica con gráficos de consultas e ingresos mensuales.
+- `/asistente` — El Asistente Clínico con IA (Genkit) para resumir notas, simplificar textos y sugerir diagnósticos.
+- `/configuracion` — Ajustes del perfil profesional, horarios y preferencias del sistema.
+
+---
+
+- `/login` — Página de inicio de sesión centrada y optimizada para el acceso del médico.
+
+
 ## Notas Adicionales
 
 - **Base de Datos:** El proyecto usa Firebase Firestore. Asegúrate de que las reglas de seguridad en tu consola de Firebase permitan la lectura/escritura o configura la autenticación correctamente.
