@@ -42,11 +42,11 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nombre(s)</Label>
-                    <Input defaultValue="Rodrigo" />
+                    <Input defaultValue="Natalia" />
                   </div>
                   <div className="space-y-2">
                     <Label>Apellidos</Label>
-                    <Input defaultValue="Alfaro" />
+                    <Input defaultValue="Solano" />
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidad</Label>
