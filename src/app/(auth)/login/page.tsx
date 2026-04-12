@@ -1,0 +1,103 @@
+"use client";
+
+import { useState } from "react";
+import { Stethoscope, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+
+export default function LoginPage() {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({ email: "", password: "" });
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    // Simulating login logic
+    setTimeout(() => {
+      if (formData.email && formData.password) {
+        toast({ title: "Bienvenido", description: "Iniciando sesión..." });
+        router.push("/");
+      } else {
+        toast({ title: "Error", description: "Credenciales inválidas.", variant: "destructive" });
+        setLoading(false);
+      }
+    }, 1500);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#EBF4FF] to-white p-6">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 mx-auto mb-6">
+            <Stethoscope className="text-white w-9 h-9" />
+          </div>
+          <h1 className="text-4xl font-headline font-extrabold text-[#1A2B3C] tracking-tight">Medi Notes</h1>
+          <p className="text-gray-500 mt-2 font-medium">Gestión Clínica Inteligente</p>
+        </div>
+
+        <div className="card-notion p-8 shadow-2xl shadow-blue-900/5">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Iniciar Sesión</h2>
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-700">Correo Electrónico</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input 
+                  type="email" 
+                  placeholder="doctor@medinotes.com" 
+                  className="pl-10 h-12 rounded-lg border-gray-200 focus:ring-primary"
+                  value={formData.email}
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-semibold text-gray-700">Contraseña</label>
+                <button type="button" className="text-xs font-semibold text-primary hover:underline">¿Olvidó su contraseña?</button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••" 
+                  className="pl-10 h-12 rounded-lg border-gray-200 focus:ring-primary"
+                  value={formData.password}
+                  onChange={e => setFormData({...formData, password: e.target.value})}
+                  required
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={loading}
+              className="w-full h-12 bg-primary hover:bg-primary-dark text-white font-bold rounded-lg transition-all duration-300 transform active:scale-[0.98]"
+            >
+              {loading ? "Verificando..." : "Ingresar al Panel"}
+            </Button>
+          </form>
+        </div>
+
+        <p className="text-center mt-8 text-gray-400 text-xs">
+          &copy; {new Date().getFullYear()} Medi Notes App. Todos los derechos reservados.
+        </p>
+      </div>
+    </div>
+  );
+}
