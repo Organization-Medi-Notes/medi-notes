@@ -152,7 +152,6 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900">Sistema en línea</p>
-                <p className="text-xs text-gray-500 mt-1">Sincronización con Firestore exitosa</p>
               </div>
             </div>
             <Button variant="outline" className="w-full mt-2 text-xs">
