@@ -45,7 +45,7 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
-  // Calcular ingresos del mes actual
+  // Cálculo funcional de ingresos del mes actual basado en datos de Firestore
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   const monthlyRevenue = allAppointments.reduce((acc, apt) => {
@@ -66,7 +66,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-gray-900">Bienvenido, Dr. Solano</h1>
@@ -74,7 +74,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="h-11">Configuración</Button>
-          <Button className="h-11 bg-accent hover:bg-accent/90">Nueva Cita</Button>
+          <Button className="h-11 bg-accent hover:bg-accent/90 text-white">Nueva Cita</Button>
         </div>
       </div>
 

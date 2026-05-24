@@ -18,8 +18,12 @@ import {
 import { db } from "./config";
 import { Paciente, Cita, Expediente, Medico } from "../types";
 
+// ID de prueba para el flujo MVP. En producción se usaría el uid del usuario autenticado.
 const DEMO_MEDICO_ID = "medico_demo_1";
 
+/**
+ * Servicio optimizado para la gestión de pacientes.
+ */
 export const patientService = {
   async getAll() {
     try {
@@ -32,7 +36,9 @@ export const patientService = {
       return snapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data(),
-        ultima: doc.data().actualizado_en instanceof Timestamp ? doc.data().actualizado_en.toDate().toLocaleDateString() : "Reciente"
+        ultima_visita: doc.data().actualizado_en instanceof Timestamp 
+          ? doc.data().actualizado_en.toDate().toLocaleDateString() 
+          : "Reciente"
       } as any));
     } catch (e) {
       console.error("Error fetching patients:", e);
@@ -41,12 +47,14 @@ export const patientService = {
   },
 
   async getById(id: string) {
-    const docRef = doc(db, "pacientes", id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as any;
+    try {
+      const docRef = doc(db, "pacientes", id);
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as any : null;
+    } catch (e) {
+      console.error("Error fetching patient by id:", e);
+      return null;
     }
-    return null;
   },
 
   async add(data: Partial<Paciente>) {
@@ -60,6 +68,9 @@ export const patientService = {
   }
 };
 
+/**
+ * Servicio optimizado para la gestión de citas y calendario.
+ */
 export const appointmentService = {
   async getAll() {
     try {
@@ -81,13 +92,18 @@ export const appointmentService = {
 
   async getToday() {
     try {
-      const snapshot = await getDocs(query(collection(db, "citas"), where("medico_id", "==", DEMO_MEDICO_ID)));
+      const snapshot = await getDocs(query(
+        collection(db, "citas"), 
+        where("medico_id", "==", DEMO_MEDICO_ID)
+      ));
       const today = new Date().toDateString();
       
       return snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
         .filter(apt => {
-          const aptDate = apt.fecha instanceof Timestamp ? apt.fecha.toDate().toDateString() : new Date(apt.fecha).toDateString();
+          const aptDate = apt.fecha instanceof Timestamp 
+            ? apt.fecha.toDate().toDateString() 
+            : new Date(apt.fecha).toDateString();
           return aptDate === today;
         })
         .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
@@ -97,6 +113,9 @@ export const appointmentService = {
   }
 };
 
+/**
+ * Servicio para expedientes clínicos.
+ */
 export const medicalRecordService = {
   async getAll() {
     try {
@@ -111,30 +130,28 @@ export const medicalRecordService = {
       console.error("Error fetching records:", e);
       return [];
     }
-  },
-
-  async add(data: Partial<Expediente>) {
-    return await addDoc(collection(db, "expedientes"), {
-      ...data,
-      medico_id: DEMO_MEDICO_ID,
-      creado_en: serverTimestamp(),
-      actualizado_en: serverTimestamp(),
-    });
   }
 };
 
+/**
+ * Servicio de configuración del perfil médico.
+ */
 export const settingsService = {
   async getProfile() {
-    const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data() as Medico;
+    try {
+      const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists() ? docSnap.data() as Medico : null;
+    } catch (e) {
+      return null;
     }
-    return null;
   },
 
   async updateProfile(data: Partial<Medico>) {
     const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
-    return await setDoc(docRef, { ...data, actualizado_en: serverTimestamp() }, { merge: true });
+    return await setDoc(docRef, { 
+      ...data, 
+      actualizado_en: serverTimestamp() 
+    }, { merge: true });
   }
 };
