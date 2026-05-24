@@ -1,13 +1,63 @@
 
 "use client";
 
-import { Settings, User, Bell, Shield, CreditCard, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, User, Bell, Shield, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { settingsService } from "@/lib/firebase/db-service";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
+  const { toast } = useToast();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await settingsService.getProfile();
+        if (data) {
+          setProfile(data);
+        } else {
+          // Default data if none exists
+          setProfile({
+            nombre: "Natalia",
+            apellidos: "Solano",
+            especialidad: "Pediatra",
+            cedula_profesional: "MED-88291-CR"
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProfile();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await settingsService.updateProfile(profile);
+      toast({ title: "Éxito", description: "Configuración guardada en la nube." });
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo guardar la configuración.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-[500px]">
+      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+    </div>
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -42,24 +92,42 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nombre(s)</Label>
-                    <Input defaultValue="Natalia" />
+                    <Input 
+                      value={profile.nombre} 
+                      onChange={e => setProfile({...profile, nombre: e.target.value})}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Apellidos</Label>
-                    <Input defaultValue="Solano" />
+                    <Input 
+                      value={profile.apellidos} 
+                      onChange={e => setProfile({...profile, apellidos: e.target.value})}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Especialidad</Label>
-                    <Input defaultValue="Pediatra" />
+                    <Input 
+                      value={profile.especialidad} 
+                      onChange={e => setProfile({...profile, especialidad: e.target.value})}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Cédula Profesional</Label>
-                    <Input defaultValue="MED-88291-CR" />
+                    <Input 
+                      value={profile.cedula_profesional} 
+                      onChange={e => setProfile({...profile, cedula_profesional: e.target.value})}
+                    />
                   </div>
                 </div>
               </div>
               <div className="pt-6 border-t">
-                <Button className="bg-primary">Guardar Cambios</Button>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving}
+                  className="bg-primary"
+                >
+                  {saving ? "Guardando..." : "Guardar Cambios"}
+                </Button>
               </div>
             </TabsContent>
 
