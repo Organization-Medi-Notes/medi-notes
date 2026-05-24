@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Clock,
   UserPlus,
-  FilePenLine,
   Loader2
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -22,17 +21,20 @@ import { appointmentService, patientService } from "@/lib/firebase/db-service";
 
 export default function DashboardPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [patientsCount, setPatientsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [apts, pts] = await Promise.all([
+        const [todayApts, allApts, pts] = await Promise.all([
           appointmentService.getToday(),
+          appointmentService.getAll(),
           patientService.getAll()
         ]);
-        setAppointments(apts);
+        setAppointments(todayApts);
+        setAllAppointments(allApts);
         setPatientsCount(pts.length);
       } catch (error) {
         console.error("Error cargando dashboard:", error);
@@ -43,11 +45,24 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
+  // Calcular ingresos del mes actual
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlyRevenue = allAppointments.reduce((acc, apt) => {
+    const date = apt.fecha?.seconds ? new Date(apt.fecha.seconds * 1000) : new Date(apt.fecha);
+    if (date.getMonth() === currentMonth && date.getFullYear() === currentYear && apt.estado === 'completada') {
+      return acc + (apt.precio || 0);
+    }
+    return acc;
+  }, 0);
+
+  const cancellations = allAppointments.filter(apt => apt.estado === 'cancelada').length;
+
   const metrics = [
-    { title: "Citas Hoy", value: appointments.length, change: "+1", trend: 'up' as const, icon: CalendarCheck, colorClass: "bg-blue-50 text-blue-600" },
-    { title: "Pacientes Total", value: patientsCount, change: "+5%", trend: 'up' as const, icon: Users, colorClass: "bg-purple-50 text-purple-600" },
-    { title: "Cancelaciones", value: 0, change: "0%", trend: 'neutral' as const, icon: XCircle, colorClass: "bg-rose-50 text-rose-600" },
-    { title: "Ingresos Mes", value: "₡0", change: "0%", trend: 'neutral' as const, icon: DollarSign, colorClass: "bg-emerald-50 text-emerald-600" },
+    { title: "Citas Hoy", value: appointments.length, change: "Hoy", trend: 'neutral' as const, icon: CalendarCheck, colorClass: "bg-blue-50 text-blue-600" },
+    { title: "Pacientes Total", value: patientsCount, change: "Activos", trend: 'up' as const, icon: Users, colorClass: "bg-purple-50 text-purple-600" },
+    { title: "Cancelaciones", value: cancellations, change: "Total", trend: 'down' as const, icon: XCircle, colorClass: "bg-rose-50 text-rose-600" },
+    { title: "Ingresos Mes", value: `₡${monthlyRevenue.toLocaleString()}`, change: "Completadas", trend: 'up' as const, icon: DollarSign, colorClass: "bg-emerald-50 text-emerald-600" },
   ];
 
   return (
@@ -136,8 +151,8 @@ export default function DashboardPage() {
                 <UserPlus className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Sistema listo</p>
-                <p className="text-xs text-gray-500 mt-1">Conexión con Firebase activa</p>
+                <p className="text-sm font-medium text-gray-900">Sistema en línea</p>
+                <p className="text-xs text-gray-500 mt-1">Sincronización con Firestore exitosa</p>
               </div>
             </div>
             <Button variant="outline" className="w-full mt-2 text-xs">

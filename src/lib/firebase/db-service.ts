@@ -18,7 +18,6 @@ import {
 import { db } from "./config";
 import { Paciente, Cita, Expediente, Medico } from "../types";
 
-// ID de médico para la demo (usualmente vendría del Auth)
 const DEMO_MEDICO_ID = "medico_demo_1";
 
 export const patientService = {
@@ -82,13 +81,16 @@ export const appointmentService = {
 
   async getToday() {
     try {
-      const q = query(
-        collection(db, "citas"),
-        where("medico_id", "==", DEMO_MEDICO_ID),
-        limit(20)
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const snapshot = await getDocs(query(collection(db, "citas"), where("medico_id", "==", DEMO_MEDICO_ID)));
+      const today = new Date().toDateString();
+      
+      return snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(apt => {
+          const aptDate = apt.fecha instanceof Timestamp ? apt.fecha.toDate().toDateString() : new Date(apt.fecha).toDateString();
+          return aptDate === today;
+        })
+        .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
     } catch (e) {
       return [];
     }
