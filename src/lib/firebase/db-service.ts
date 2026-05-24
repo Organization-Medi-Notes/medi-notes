@@ -36,6 +36,15 @@ export const patientService = {
     } as any));
   },
 
+  async getById(id: string) {
+    const docRef = doc(db, "pacientes", id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as any;
+    }
+    return null;
+  },
+
   async add(data: Partial<Paciente>) {
     return await addDoc(collection(db, "pacientes"), {
       ...data,
