@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase/config';
+
 
 export default function LoginPage() {
   const { toast } = useToast();
@@ -15,20 +19,75 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({ email: "", password: "" });
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    // Simulating login logic
-    setTimeout(() => {
-      if (formData.email && formData.password) {
-        toast({ title: "Bienvenido", description: "Iniciando sesión..." });
-        router.push("/");
-      } else {
-        toast({ title: "Error", description: "Credenciales inválidas.", variant: "destructive" });
-        setLoading(false);
-      }
-    }, 1500);
-  };
+  e.preventDefault();
+
+  if (!formData.email || !formData.password) {
+    toast({
+      title: "Campos requeridos",
+      description: "Por favor ingrese correo y contraseña.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      formData.email,
+      formData.password
+    );
+
+    const firebaseUser = userCredential.user;
+
+    const userRef = doc(db, "usuarios", firebaseUser.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      toast({
+        title: "Usuario no encontrado",
+        description: "No existe un perfil asociado a esta cuenta.",
+        variant: "destructive",
+      });
+
+      setLoading(false);
+      return;
+    }
+
+    const userData = userSnap.data();
+
+    if (userData.activo === false) {
+      toast({
+        title: "Cuenta desactivada",
+        description: "Contacte al administrador del sistema.",
+        variant: "destructive",
+      });
+
+      setLoading(false);
+      return;
+    }
+
+    await updateDoc(userRef, {
+      ultimoAcceso: new Date(),
+    });
+
+    toast({
+      title: "Bienvenido",
+      description: `Inicio de sesión exitoso.`,
+    });
+
+    router.push("/");
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "Correo o contraseña incorrectos.",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#EBF4FF] to-white p-6">
