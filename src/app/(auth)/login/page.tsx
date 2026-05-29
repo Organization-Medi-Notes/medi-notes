@@ -150,6 +150,14 @@ export default function LoginPage() {
             >
               {loading ? "Verificando..." : "Ingresar al Panel"}
             </Button>
+            <Button
+  type="button"
+  variant="outline"
+  onClick={() => router.push("/signup")}
+  className="w-full h-12 rounded-lg font-bold"
+>
+  Crear cuenta
+</Button>
           </form>
         </div>
 
