@@ -21,26 +21,41 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { patientService } from "@/lib/firebase/db-service";
+import { NewPatientForm } from "./components/NewPatientForm";
 
 export default function PatientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  async function loadPatients() {
+    try {
+      const data = await patientService.getAll();
+      setPatients(data);
+    } catch (error) {
+      console.error("Error cargando pacientes:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadPatients() {
-      try {
-        const data = await patientService.getAll();
-        setPatients(data);
-      } catch (error) {
-        console.error("Error cargando pacientes:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadPatients();
   }, []);
+
+  const handleFormFinished = () => {
+    setIsFormOpen(false);
+    loadPatients();
+  };
 
   const filteredPatients = patients.filter(p => 
     p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,10 +69,20 @@ export default function PatientsPage() {
           <h1 className="text-3xl font-headline font-bold text-gray-900">Pacientes</h1>
           <p className="text-gray-500 mt-1">Gestione su base de datos de pacientes registrados.</p>
         </div>
-        <Button className="h-11 bg-primary hover:bg-primary-dark">
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Paciente
-        </Button>
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogTrigger asChild>
+            <Button className="h-11 bg-primary hover:bg-primary-dark">
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Paciente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Registrar Nuevo Paciente</DialogTitle>
+            </DialogHeader>
+            <NewPatientForm onFinished={handleFormFinished} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
