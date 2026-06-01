@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Loader2, User, ClipboardList,
   Calendar, CheckCircle, CalendarDays, Clock,
-  AlertTriangle, Pill, BookOpen, ShieldAlert
+  AlertTriangle, Pill, BookOpen, ShieldAlert, BarChart2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,11 @@ interface Stats {
   ultimaConsulta: any;
 }
 
+interface DiagnosticoFrecuente {
+  nombre: string;
+  cantidad: number;
+}
+
 function calcularEdad(fechaNacimiento: any): number {
   if (!fechaNacimiento) return 0;
   try {
@@ -52,6 +57,11 @@ function formatFecha(fecha: any): string {
   } catch {
     return "—";
   }
+}
+
+function capitalize(str: string): string {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function StatCard({ icon, value, label, color }: {
@@ -88,18 +98,13 @@ function AlertasMedicas({ paciente }: { paciente: Paciente }) {
 
   return (
     <div className={`rounded-xl p-5 ${bannerClass}`}>
-      {/* Banner header */}
       <div className="flex items-center gap-2 mb-4">
         <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
         <p className="text-sm font-bold text-rose-700 uppercase tracking-wide">
           Alertas médicas importantes
         </p>
       </div>
-
-      {/* Tres columnas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-rose-200/60">
-
-        {/* Columna 1 — Alergias */}
         <div className="pt-4 md:pt-0 md:pr-4 space-y-2">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
@@ -111,9 +116,7 @@ function AlertasMedicas({ paciente }: { paciente: Paciente }) {
             <>
               <div className="flex flex-wrap gap-1.5">
                 {alergias.map((a, i) => (
-                  <span key={i} className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-full font-medium">
-                    {a}
-                  </span>
+                  <span key={i} className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-full font-medium">{a}</span>
                 ))}
               </div>
               <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
@@ -127,8 +130,6 @@ function AlertasMedicas({ paciente }: { paciente: Paciente }) {
             </span>
           )}
         </div>
-
-        {/* Columna 2 — Medicamentos */}
         <div className="pt-4 md:pt-0 md:px-4 space-y-2">
           <div className="flex items-center gap-2">
             <Pill className="w-4 h-4 text-blue-600 shrink-0" />
@@ -139,23 +140,17 @@ function AlertasMedicas({ paciente }: { paciente: Paciente }) {
           {medicamentos.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {medicamentos.map((m, i) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
-                  {m}
-                </span>
+                <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">{m}</span>
               ))}
             </div>
           ) : (
             <p className="text-xs text-gray-400">Sin medicamentos registrados</p>
           )}
         </div>
-
-        {/* Columna 3 — Antecedentes */}
         <div className="pt-4 md:pt-0 md:pl-4 space-y-2">
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
-            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-              Antecedentes
-            </p>
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Antecedentes</p>
           </div>
           {antFamiliares || antPersonales ? (
             <div className="space-y-2">
@@ -187,6 +182,7 @@ export default function ExpedienteDetallePage() {
 
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [diagnosticosFrecuentes, setDiagnosticosFrecuentes] = useState<DiagnosticoFrecuente[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -216,11 +212,29 @@ export default function ExpedienteDetallePage() {
         const porcentajeAsistencia = totalCitas > 0
           ? `${((citasCompletadas / totalCitas) * 100).toFixed(1)}%`
           : "Sin datos";
-
         const ultimaConsulta = consultasSnap.docs[0]?.data()?.fecha ?? null;
         const primeraConsulta = primeraConsultaSnap.docs[0]?.data()?.fecha ?? null;
 
         setStats({ totalConsultas, totalCitas, porcentajeAsistencia, primeraConsulta, ultimaConsulta });
+
+        // Procesar diagnósticos frecuentes
+        const todosLosDiagnosticos: string[] = consultasSnap.docs
+          .map(d => d.data().diagnostico ?? [])
+          .flat()
+          .map((d: string) => d.trim().toLowerCase())
+          .filter((d: string) => d.length > 0);
+
+        const conteo = todosLosDiagnosticos.reduce((acc: Record<string, number>, d: string) => {
+          acc[d] = (acc[d] ?? 0) + 1;
+          return acc;
+        }, {});
+
+        const ordenados = Object.entries(conteo)
+          .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+          .sort((a, b) => b.cantidad - a.cantidad)
+          .slice(0, 5);
+
+        setDiagnosticosFrecuentes(ordenados);
 
       } catch (error) {
         console.error("Error cargando expediente:", error);
@@ -262,12 +276,7 @@ export default function ExpedienteDetallePage() {
       {/* Header — sin tocar */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => router.push("/expedientes")}
-          >
+          <Button variant="outline" size="sm" className="h-9" onClick={() => router.push("/expedientes")}>
             <ArrowLeft className="w-4 h-4 mr-1" />
             Volver
           </Button>
@@ -300,7 +309,7 @@ export default function ExpedienteDetallePage() {
         </div>
       )}
 
-      {/* Banner alertas médicas — nuevo */}
+      {/* Banner alertas médicas — sin tocar */}
       <AlertasMedicas paciente={paciente} />
 
       {/* Resumen estadístico — sin tocar */}
@@ -309,36 +318,42 @@ export default function ExpedienteDetallePage() {
           Resumen estadístico
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard
-            icon={<ClipboardList className="w-5 h-5 text-blue-600" />}
-            value={String(stats?.totalConsultas ?? 0)}
-            label="Total consultas"
-            color="bg-blue-50"
-          />
-          <StatCard
-            icon={<Calendar className="w-5 h-5 text-violet-600" />}
-            value={String(stats?.totalCitas ?? 0)}
-            label="Total citas"
-            color="bg-violet-50"
-          />
-          <StatCard
-            icon={<CheckCircle className="w-5 h-5 text-emerald-600" />}
-            value={stats?.porcentajeAsistencia ?? "Sin datos"}
-            label="% Asistencia"
-            color="bg-emerald-50"
-          />
-          <StatCard
-            icon={<CalendarDays className="w-5 h-5 text-orange-600" />}
-            value={stats?.primeraConsulta ? formatFecha(stats.primeraConsulta) : "Sin datos"}
-            label="Primera consulta"
-            color="bg-orange-50"
-          />
-          <StatCard
-            icon={<Clock className="w-5 h-5 text-rose-600" />}
-            value={stats?.ultimaConsulta ? formatFecha(stats.ultimaConsulta) : "Sin datos"}
-            label="Última consulta"
-            color="bg-rose-50"
-          />
+          <StatCard icon={<ClipboardList className="w-5 h-5 text-blue-600" />} value={String(stats?.totalConsultas ?? 0)} label="Total consultas" color="bg-blue-50" />
+          <StatCard icon={<Calendar className="w-5 h-5 text-violet-600" />} value={String(stats?.totalCitas ?? 0)} label="Total citas" color="bg-violet-50" />
+          <StatCard icon={<CheckCircle className="w-5 h-5 text-emerald-600" />} value={stats?.porcentajeAsistencia ?? "Sin datos"} label="% Asistencia" color="bg-emerald-50" />
+          <StatCard icon={<CalendarDays className="w-5 h-5 text-orange-600" />} value={stats?.primeraConsulta ? formatFecha(stats.primeraConsulta) : "Sin datos"} label="Primera consulta" color="bg-orange-50" />
+          <StatCard icon={<Clock className="w-5 h-5 text-rose-600" />} value={stats?.ultimaConsulta ? formatFecha(stats.ultimaConsulta) : "Sin datos"} label="Última consulta" color="bg-rose-50" />
+        </div>
+      </div>
+
+      {/* Diagnósticos más frecuentes — corregido sin barras */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart2 className="w-4 h-4 text-gray-500" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Diagnósticos más frecuentes
+          </p>
+        </div>
+        <div className="card-notion space-y-2">
+          {diagnosticosFrecuentes.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">
+              No hay diagnósticos registrados para este paciente.
+            </p>
+          ) : (
+            diagnosticosFrecuentes.map((d, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <span className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center shrink-0">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm text-gray-800 font-medium">{capitalize(d.nombre)}</span>
+                </div>
+                <span className="px-2.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full font-medium shrink-0 ml-4">
+                  {d.cantidad} {d.cantidad === 1 ? "vez" : "veces"}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

@@ -238,7 +238,13 @@ function generarPaciente(i) {
   };
 }
 
-function generarConsulta(pacienteId) {
+function generarConsulta(pacienteId, diagnosticosBase) {
+  // 70% de probabilidad de usar un diagnóstico base del paciente
+  const usarBase = diagnosticosBase.length > 0 && Math.random() < 0.7;
+  const diagnostico = usarBase
+    ? aleatorioN(diagnosticosBase, 1)
+    : aleatorioN(DIAGNOSTICOS_OPCIONES, numeroAleatorio(1, 2));
+
   return {
     pacienteId,
     doctorId: DOCTOR_ID,
@@ -247,7 +253,7 @@ function generarConsulta(pacienteId) {
     fechaCreacion: Timestamp.now(),
     motivoConsulta: aleatorio(MOTIVOS_CONSULTA),
     examenFisico: aleatorio(EXAMENES_FISICOS),
-    diagnostico: aleatorioN(DIAGNOSTICOS_OPCIONES, numeroAleatorio(1, 2)),
+    diagnostico,
     tratamiento: aleatorio(TRATAMIENTOS),
     indicaciones: aleatorio(INDICACIONES),
     notasClinicas: aleatorio(NOTAS_CLINICAS),
@@ -264,8 +270,11 @@ async function seed() {
     const pacienteRef = await addDoc(collection(db, "pacientes"), pacienteData);
     console.log(`✓ Paciente ${i + 1}/${CANTIDAD_PACIENTES}: ${pacienteData.nombre} ${pacienteData.apellidos}`);
 
+    // Cada paciente tiene 1-3 condiciones crónicas que se repiten en sus consultas
+    const diagnosticosBase = aleatorioN(DIAGNOSTICOS_OPCIONES, numeroAleatorio(1, 3));
+
     for (let j = 0; j < CONSULTAS_POR_PACIENTE; j++) {
-      await addDoc(collection(db, "consultas"), generarConsulta(pacienteRef.id));
+      await addDoc(collection(db, "consultas"), generarConsulta(pacienteRef.id, diagnosticosBase));
     }
     console.log(`  ✓ ${CONSULTAS_POR_PACIENTE} consultas creadas`);
   }
