@@ -15,7 +15,7 @@ import {
   Timestamp,
   setDoc
 } from "firebase/firestore";
-import { db } from "./config";
+import { db } from "./config"; // Asegúrate de que esta importación sea correcta
 import { Paciente, Cita, Expediente, Medico } from "../types";
 
 // ID de prueba para el flujo MVP. En producción se usaría el uid del usuario autenticado.
@@ -25,10 +25,14 @@ const DEMO_MEDICO_ID = "medico_demo_1";
  * Servicio optimizado para la gestión de pacientes.
  */
 export const patientService = {
+  // Asegúrate de que 'db' esté correctamente inicializado y accesible aquí
+  db: db, // Exponer la instancia de db para ser usada externamente si es necesario, o usarla directamente aquí
+
   async getAll() {
     try {
+      // La llamada a collection(db, "pacientes") debería funcionar si 'db' está bien importado
       const q = query(
-        collection(db, "pacientes"), 
+        collection(this.db, "pacientes"), // Usar 'this.db' para asegurar que usamos la instancia correcta
         where("medico_id", "==", DEMO_MEDICO_ID),
         orderBy("creado_en", "desc")
       );
@@ -48,7 +52,7 @@ export const patientService = {
 
   async getById(id: string) {
     try {
-      const docRef = doc(db, "pacientes", id);
+      const docRef = doc(this.db, "pacientes", id); // Usar 'this.db'
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as any : null;
     } catch (e) {
@@ -58,7 +62,8 @@ export const patientService = {
   },
 
   async add(data: Partial<Paciente>) {
-    return await addDoc(collection(db, "pacientes"), {
+    // Usar 'this.db' para la colección
+    return await addDoc(collection(this.db, "pacientes"), {
       ...data,
       medico_id: DEMO_MEDICO_ID,
       activo: true,
@@ -72,10 +77,13 @@ export const patientService = {
  * Servicio optimizado para la gestión de citas y calendario.
  */
 export const appointmentService = {
+  // Asegúrate de que 'db' esté correctamente inicializado y accesible aquí
+  db: db,
+
   async getAll() {
     try {
       const q = query(
-        collection(db, "citas"), 
+        collection(this.db, "citas"), // Usar 'this.db'
         where("medico_id", "==", DEMO_MEDICO_ID),
         orderBy("fecha", "asc")
       );
@@ -93,7 +101,7 @@ export const appointmentService = {
   async getToday() {
     try {
       const snapshot = await getDocs(query(
-        collection(db, "citas"), 
+        collection(this.db, "citas"), // Usar 'this.db'
         where("medico_id", "==", DEMO_MEDICO_ID)
       ));
       const today = new Date().toDateString();
@@ -108,6 +116,7 @@ export const appointmentService = {
         })
         .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
     } catch (e) {
+      console.error("Error fetching today's appointments:", e);
       return [];
     }
   }
@@ -117,10 +126,12 @@ export const appointmentService = {
  * Servicio para expedientes clínicos.
  */
 export const medicalRecordService = {
+  // Asegúrate de que 'db' esté correctamente inicializado y accesible aquí
+  db: db,
   async getAll() {
     try {
       const q = query(
-        collection(db, "expedientes"),
+        collection(this.db, "expedientes"), // Usar 'this.db'
         where("medico_id", "==", DEMO_MEDICO_ID),
         orderBy("creado_en", "desc")
       );
@@ -137,18 +148,21 @@ export const medicalRecordService = {
  * Servicio de configuración del perfil médico.
  */
 export const settingsService = {
+  // Asegúrate de que 'db' esté correctamente inicializado y accesible aquí
+  db: db,
   async getProfile() {
     try {
-      const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
+      const docRef = doc(this.db, "configuracion", DEMO_MEDICO_ID); // Usar 'this.db'
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? docSnap.data() as Medico : null;
     } catch (e) {
+      console.error("Error fetching profile:", e);
       return null;
     }
   },
 
   async updateProfile(data: Partial<Medico>) {
-    const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
+    const docRef = doc(this.db, "configuracion", DEMO_MEDICO_ID); // Usar 'this.db'
     return await setDoc(docRef, { 
       ...data, 
       actualizado_en: serverTimestamp() 

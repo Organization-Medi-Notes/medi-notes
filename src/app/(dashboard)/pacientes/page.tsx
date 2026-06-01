@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, Filter, MoreHorizontal, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +25,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { patientService } from "@/lib/firebase/db-service";
 import { NewPatientForm } from "./components/NewPatientForm";
@@ -36,8 +34,10 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
 
-  async function loadPatients() {
+  const loadPatients = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await patientService.getAll();
       setPatients(data);
@@ -46,20 +46,38 @@ export default function PatientsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadPatients();
+  }, [loadPatients]);
+
+  const handleCloseDialog = useCallback(() => {
+    setIsFormOpen(false);
+    // Limpiar selectedPatient después de que el dialog termine de cerrarse
+    setTimeout(() => setSelectedPatient(null), 300);
   }, []);
 
-  const handleFormFinished = () => {
-    setIsFormOpen(false);
+  const handleFormFinished = useCallback(() => {
+    handleCloseDialog();
     loadPatients();
-  };
+  }, [handleCloseDialog, loadPatients]);
+
+  const handleEditPatient = useCallback((patient: any) => {
+    setSelectedPatient(patient);
+    // Pequeño delay para que el DropdownMenu termine de cerrarse antes de abrir el Dialog
+    setTimeout(() => setIsFormOpen(true), 100);
+  }, []);
+
+  const handleOpenNewPatientForm = useCallback(() => {
+    setSelectedPatient(null);
+    setIsFormOpen(true);
+  }, []);
 
   const filteredPatients = patients.filter(p => 
     p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.numero_expediente?.toLowerCase().includes(searchTerm.toLowerCase())
+    p.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -69,27 +87,20 @@ export default function PatientsPage() {
           <h1 className="text-3xl font-headline font-bold text-gray-900">Pacientes</h1>
           <p className="text-gray-500 mt-1">Gestione su base de datos de pacientes registrados.</p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button className="h-11 bg-primary hover:bg-primary-dark">
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo Paciente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registrar Nuevo Paciente</DialogTitle>
-            </DialogHeader>
-            <NewPatientForm onFinished={handleFormFinished} />
-          </DialogContent>
-        </Dialog>
+        <Button 
+          className="h-11 bg-primary hover:bg-primary-dark" 
+          onClick={handleOpenNewPatientForm}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Nuevo Paciente
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input 
-            placeholder="Buscar por nombre o expediente..." 
+            placeholder="Buscar por nombre, apellidos o cédula..." 
             className="pl-10 h-11 border-gray-200 focus:ring-primary rounded-lg"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -154,17 +165,25 @@ export default function PatientsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-primary">
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem className="cursor-pointer">Ver Perfil</DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-primary">Nueva Cita</DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer">Editar</DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-rose-600">Archivar</DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="cursor-pointer"
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            handleEditPatient(p);
+                          }}
+                        >
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer text-rose-600">
+                          Archivar
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -174,6 +193,20 @@ export default function PatientsPage() {
           </Table>
         )}
       </div>
+
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseDialog(); }}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedPatient ? "Editar Paciente" : "Registrar Nuevo Paciente"}
+            </DialogTitle>
+          </DialogHeader>
+          <NewPatientForm 
+            onFinished={handleFormFinished} 
+            patientToEdit={selectedPatient} 
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
