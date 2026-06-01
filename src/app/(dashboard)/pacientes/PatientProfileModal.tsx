@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip } from "lucide-react";
+import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, Timestamp } from "firebase/firestore";
+import { Textarea } from "@/components/ui/textarea";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, Timestamp, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase/config";
 
@@ -24,6 +25,11 @@ interface Consulta {
   id: string;
   fecha: any;
   motivoConsulta: string;
+  examenFisico: string;
+  diagnostico: string[];
+  tratamiento: string;
+  indicaciones: string;
+  notasClinicas: string;
 }
 
 interface Cita {
@@ -38,6 +44,24 @@ interface Documento {
   url: string;
   fechaSubida: any;
 }
+
+interface NuevaConsultaForm {
+  motivoConsulta: string;
+  examenFisico: string;
+  diagnostico: string;
+  tratamiento: string;
+  indicaciones: string;
+  notasClinicas: string;
+}
+
+const FORM_INICIAL: NuevaConsultaForm = {
+  motivoConsulta: "",
+  examenFisico: "",
+  diagnostico: "",
+  tratamiento: "",
+  indicaciones: "",
+  notasClinicas: "",
+};
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -103,6 +127,78 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
+function FormField({ label, required, value, onChange, placeholder }: {
+  label: string;
+  required?: boolean;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+        {label}{required && <span className="text-rose-500 ml-0.5">*</span>}
+      </label>
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || ""}
+        className="resize-none min-h-[80px] text-sm border-gray-200 focus:ring-primary rounded-lg"
+      />
+    </div>
+  );
+}
+
+// ── Modal de detalle de consulta — solo lectura ──
+function ConsultaDetalleModal({ consulta, onClose }: { consulta: Consulta; onClose: () => void }) {
+  return (
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold text-gray-900">
+            Detalle de consulta — {formatFecha(consulta.fecha)}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 mt-2">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Información clínica
+            </p>
+            <div className="space-y-4">
+              <InfoRow label="Motivo de consulta" value={consulta.motivoConsulta} />
+              <InfoRow label="Examen físico" value={consulta.examenFisico} />
+              <InfoRow label="Tratamiento" value={consulta.tratamiento} />
+              <InfoRow label="Indicaciones" value={consulta.indicaciones} />
+              <InfoRow label="Notas clínicas" value={consulta.notasClinicas} />
+            </div>
+          </div>
+
+          {consulta.diagnostico && consulta.diagnostico.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Diagnóstico
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {consulta.diagnostico.map((d, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t border-gray-100">
+            <Button variant="outline" className="h-9" onClick={onClose}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfileModalProps) {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loadingConsultas, setLoadingConsultas] = useState(false);
@@ -114,10 +210,19 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Estados nueva consulta
+  const [form, setForm] = useState<NuevaConsultaForm>(FORM_INICIAL);
+  const [savingConsulta, setSavingConsulta] = useState(false);
+  const [consultaSuccess, setConsultaSuccess] = useState(false);
+  const [consultaError, setConsultaError] = useState<string | null>(null);
+  const [consultaValidationError, setConsultaValidationError] = useState<string | null>(null);
+
+  // Estado detalle consulta
+  const [consultaSeleccionada, setConsultaSeleccionada] = useState<Consulta | null>(null);
+
   useEffect(() => {
     if (!patient?.id || !isOpen) return;
 
-    // Cargar documentos desde el objeto patient
     setDocumentos(patient.documentos || []);
 
     const fetchConsultas = async () => {
@@ -183,12 +288,10 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     setUploadSuccess(false);
 
     try {
-      // Subir a Firebase Storage
       const storageRef = ref(storage, `pacientes/${patient.id}/${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
 
-      // Guardar referencia en Firestore
       const nuevoDoc: Documento = {
         nombre: file.name,
         url,
@@ -200,14 +303,10 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
         documentos: arrayUnion(nuevoDoc),
       });
 
-      // Actualizar lista local
       setDocumentos(prev => [...prev, nuevoDoc]);
       setUploadSuccess(true);
 
-      // Limpiar input
       if (fileInputRef.current) fileInputRef.current.value = "";
-
-      // Ocultar mensaje de éxito después de 3 segundos
       setTimeout(() => setUploadSuccess(false), 3000);
     } catch (error) {
       console.error("Error subiendo archivo:", error);
@@ -217,218 +316,341 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     }
   };
 
+  const handleGuardarConsulta = async () => {
+    setConsultaValidationError(null);
+    setConsultaError(null);
+    setConsultaSuccess(false);
+
+    if (!form.motivoConsulta.trim()) {
+      setConsultaValidationError("El motivo de consulta es obligatorio.");
+      return;
+    }
+
+    setSavingConsulta(true);
+    try {
+      const now = Timestamp.now();
+      await addDoc(collection(db, "consultas"), {
+        pacienteId: patient.id,
+        doctorId: "",
+        citaId: "",
+        fecha: now,
+        fechaCreacion: now,
+        motivoConsulta: form.motivoConsulta.trim(),
+        examenFisico: form.examenFisico.trim(),
+        diagnostico: form.diagnostico.trim() ? [form.diagnostico.trim()] : [],
+        tratamiento: form.tratamiento.trim(),
+        indicaciones: form.indicaciones.trim(),
+        notasClinicas: form.notasClinicas.trim(),
+        resumenIA: "",
+      });
+
+      setForm(FORM_INICIAL);
+      setConsultaSuccess(true);
+      setTimeout(() => setConsultaSuccess(false), 3000);
+
+      // Recargar historial de consultas
+      const q = query(
+        collection(db, "consultas"),
+        where("pacienteId", "==", patient.id),
+        orderBy("fecha", "desc")
+      );
+      const snapshot = await getDocs(q);
+      setConsultas(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Consulta[]);
+
+    } catch (error) {
+      console.error("Error guardando consulta:", error);
+      setConsultaError("Ocurrió un error al guardar la consulta. Intentá de nuevo.");
+    } finally {
+      setSavingConsulta(false);
+    }
+  };
+
   if (!patient) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900">
-            {patient.nombre} {patient.apellidos}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              {patient.nombre} {patient.apellidos}
+            </DialogTitle>
+          </DialogHeader>
 
-        <Tabs defaultValue="info" className="mt-2">
-          <TabsList className="mb-4">
-            <TabsTrigger value="info">Información general</TabsTrigger>
-            <TabsTrigger value="historial">Historial de consultas</TabsTrigger>
-            <TabsTrigger value="citas">Citas anteriores</TabsTrigger>
-            <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="info" className="mt-2">
+            <TabsList className="mb-4">
+              <TabsTrigger value="info">Información general</TabsTrigger>
+              <TabsTrigger value="historial">Historial de consultas</TabsTrigger>
+              <TabsTrigger value="citas">Citas anteriores</TabsTrigger>
+              <TabsTrigger value="documentos">Documentos</TabsTrigger>
+              <TabsTrigger value="nueva-consulta">Nueva consulta</TabsTrigger>
+            </TabsList>
 
-          {/* PESTAÑA 1 — Información general — sin tocar */}
-          <TabsContent value="info" className="space-y-6">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Datos personales</p>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Nombre" value={patient.nombre} />
-                <InfoRow label="Apellidos" value={patient.apellidos} />
-                <InfoRow label="Cédula" value={patient.cedula} />
-                <InfoRow label="Fecha de nacimiento" value={formatFecha(patient.fechaNacimiento)} />
-                <InfoRow label="Sexo" value={patient.sexo} />
-                <InfoRow label="Grupo sanguíneo" value={patient.grupoSanguineo} />
+            {/* PESTAÑA 1 — Información general — sin tocar */}
+            <TabsContent value="info" className="space-y-6">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Datos personales</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Nombre" value={patient.nombre} />
+                  <InfoRow label="Apellidos" value={patient.apellidos} />
+                  <InfoRow label="Cédula" value={patient.cedula} />
+                  <InfoRow label="Fecha de nacimiento" value={formatFecha(patient.fechaNacimiento)} />
+                  <InfoRow label="Sexo" value={patient.sexo} />
+                  <InfoRow label="Grupo sanguíneo" value={patient.grupoSanguineo} />
+                </div>
               </div>
-            </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacto</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Teléfono" value={patient.telefono} />
+                  <InfoRow label="Email" value={patient.email} />
+                  <InfoRow label="Dirección" value={patient.direccion} />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacto de emergencia</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Nombre" value={patient.contactoEmergenciaNombre} />
+                  <InfoRow label="Teléfono" value={patient.contactoEmergenciaTelefono} />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Información médica</p>
+                <div className="space-y-4">
+                  <TagList label="Alergias" items={patient.alergias} />
+                  <TagList label="Medicamentos actuales" items={patient.medicamentosActuales} />
+                  <InfoRow label="Antecedentes familiares" value={patient.antecedentesFamiliares} />
+                  <InfoRow label="Antecedentes personales" value={patient.antecedentesPersonales} />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Seguro</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Aseguradora" value={patient.aseguradora} />
+                  <InfoRow label="Número de póliza" value={patient.numeroPoliza} />
+                </div>
+              </div>
+            </TabsContent>
 
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacto</p>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Teléfono" value={patient.telefono} />
-                <InfoRow label="Email" value={patient.email} />
-                <InfoRow label="Dirección" value={patient.direccion} />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacto de emergencia</p>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Nombre" value={patient.contactoEmergenciaNombre} />
-                <InfoRow label="Teléfono" value={patient.contactoEmergenciaTelefono} />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Información médica</p>
-              <div className="space-y-4">
-                <TagList label="Alergias" items={patient.alergias} />
-                <TagList label="Medicamentos actuales" items={patient.medicamentosActuales} />
-                <InfoRow label="Antecedentes familiares" value={patient.antecedentesFamiliares} />
-                <InfoRow label="Antecedentes personales" value={patient.antecedentesPersonales} />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Seguro</p>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Aseguradora" value={patient.aseguradora} />
-                <InfoRow label="Número de póliza" value={patient.numeroPoliza} />
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* PESTAÑA 2 — Historial de consultas — sin tocar */}
-          <TabsContent value="historial">
-            {loadingConsultas ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                <p className="text-sm">Cargando historial...</p>
-              </div>
-            ) : consultas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <FileText className="w-10 h-10 mb-2 opacity-20" />
-                <p className="text-sm">Este paciente no tiene consultas anteriores registradas.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {consultas.map((c) => (
-                  <div key={c.id} className="flex items-start gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
-                    <div className="min-w-[120px]">
-                      <span className="text-xs text-gray-400 block">Fecha</span>
-                      <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-xs text-gray-400 block">Motivo</span>
-                      <span className="text-sm text-gray-800">{c.motivoConsulta || "—"}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* PESTAÑA 3 — Citas anteriores — sin tocar */}
-          <TabsContent value="citas">
-            {loadingCitas ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                <p className="text-sm">Cargando citas...</p>
-              </div>
-            ) : citas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Calendar className="w-10 h-10 mb-2 opacity-20" />
-                <p className="text-sm">Este paciente no tiene citas anteriores registradas.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {citas.map((c) => (
-                  <div key={c.id} className="flex items-start gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
-                    <div className="min-w-[120px]">
-                      <span className="text-xs text-gray-400 block">Fecha</span>
-                      <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-xs text-gray-400 block">Motivo</span>
-                      <span className="text-sm text-gray-800">{c.motivo || "—"}</span>
-                    </div>
-                    <div className="min-w-[100px] flex justify-end">
-                      <EstadoBadge estado={c.estado} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* PESTAÑA 4 — Documentos — nuevo */}
-          <TabsContent value="documentos" className="space-y-4">
-
-            {/* Zona de subida */}
-            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center gap-3 bg-gray-50/50">
-              <Upload className="w-8 h-8 text-gray-300" />
-              <p className="text-sm text-gray-500 text-center">
-                Subí un archivo PDF o imagen para asociarlo a este paciente
-              </p>
-              <p className="text-xs text-gray-400">Formatos aceptados: PDF, JPG, PNG</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploading}
-              />
-              <Button
-                variant="outline"
-                className="h-9 mt-1"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Subiendo...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Seleccionar archivo
-                  </>
-                )}
-              </Button>
-
-              {uploadSuccess && (
-                <p className="text-sm text-emerald-600 font-medium">
-                  Archivo subido correctamente.
-                </p>
-              )}
-              {uploadError && (
-                <p className="text-sm text-rose-600">
-                  {uploadError}
-                </p>
-              )}
-            </div>
-
-            {/* Lista de documentos */}
-            {documentos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-                <Paperclip className="w-8 h-8 mb-2 opacity-20" />
-                <p className="text-sm">Este paciente no tiene documentos adjuntos.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {documentos.map((d, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
-                    <FileText className="w-5 h-5 text-gray-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{d.nombre}</p>
-                      <p className="text-xs text-gray-400">{formatFecha(d.fechaSubida)}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
-                      onClick={() => window.open(d.url, "_blank")}
+            {/* PESTAÑA 2 — Historial de consultas — filas clickeables */}
+            <TabsContent value="historial">
+              {loadingConsultas ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                  <p className="text-sm">Cargando historial...</p>
+                </div>
+              ) : consultas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <FileText className="w-10 h-10 mb-2 opacity-20" />
+                  <p className="text-sm">Este paciente no tiene consultas anteriores registradas.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {consultas.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50 cursor-pointer hover:bg-blue-50/40 hover:border-blue-100 transition-colors"
+                      onClick={() => setConsultaSeleccionada(c)}
                     >
-                      <ExternalLink className="w-4 h-4 mr-1" />
-                      Abrir
-                    </Button>
-                  </div>
-                ))}
+                      <div className="min-w-[120px]">
+                        <span className="text-xs text-gray-400 block">Fecha</span>
+                        <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-xs text-gray-400 block">Motivo</span>
+                        <span className="text-sm text-gray-800">{c.motivoConsulta || "—"}</span>
+                      </div>
+                      <Eye className="w-4 h-4 text-gray-300 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* PESTAÑA 3 — Citas anteriores — sin tocar */}
+            <TabsContent value="citas">
+              {loadingCitas ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                  <p className="text-sm">Cargando citas...</p>
+                </div>
+              ) : citas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <Calendar className="w-10 h-10 mb-2 opacity-20" />
+                  <p className="text-sm">Este paciente no tiene citas anteriores registradas.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {citas.map((c) => (
+                    <div key={c.id} className="flex items-start gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+                      <div className="min-w-[120px]">
+                        <span className="text-xs text-gray-400 block">Fecha</span>
+                        <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-xs text-gray-400 block">Motivo</span>
+                        <span className="text-sm text-gray-800">{c.motivo || "—"}</span>
+                      </div>
+                      <div className="min-w-[100px] flex justify-end">
+                        <EstadoBadge estado={c.estado} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* PESTAÑA 4 — Documentos — sin tocar */}
+            <TabsContent value="documentos" className="space-y-4">
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center gap-3 bg-gray-50/50">
+                <Upload className="w-8 h-8 text-gray-300" />
+                <p className="text-sm text-gray-500 text-center">
+                  Subí un archivo PDF o imagen para asociarlo a este paciente
+                </p>
+                <p className="text-xs text-gray-400">Formatos aceptados: PDF, JPG, PNG</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <Button
+                  variant="outline"
+                  className="h-9 mt-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Seleccionar archivo
+                    </>
+                  )}
+                </Button>
+                {uploadSuccess && (
+                  <p className="text-sm text-emerald-600 font-medium">Archivo subido correctamente.</p>
+                )}
+                {uploadError && (
+                  <p className="text-sm text-rose-600">{uploadError}</p>
+                )}
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+              {documentos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                  <Paperclip className="w-8 h-8 mb-2 opacity-20" />
+                  <p className="text-sm">Este paciente no tiene documentos adjuntos.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {documentos.map((d, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+                      <FileText className="w-5 h-5 text-gray-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{d.nombre}</p>
+                        <p className="text-xs text-gray-400">{formatFecha(d.fechaSubida)}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
+                        onClick={() => window.open(d.url, "_blank")}
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Abrir
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* PESTAÑA 5 — Nueva consulta — sin tocar */}
+            <TabsContent value="nueva-consulta" className="space-y-4">
+              <div className="space-y-4">
+                <FormField
+                  label="Motivo de consulta"
+                  required
+                  value={form.motivoConsulta}
+                  onChange={(val) => setForm(prev => ({ ...prev, motivoConsulta: val }))}
+                  placeholder="Describí el motivo principal de la consulta"
+                />
+                <FormField
+                  label="Examen físico"
+                  value={form.examenFisico}
+                  onChange={(val) => setForm(prev => ({ ...prev, examenFisico: val }))}
+                  placeholder="Hallazgos del examen físico"
+                />
+                <FormField
+                  label="Diagnóstico"
+                  value={form.diagnostico}
+                  onChange={(val) => setForm(prev => ({ ...prev, diagnostico: val }))}
+                  placeholder="Diagnóstico del paciente"
+                />
+                <FormField
+                  label="Tratamiento"
+                  value={form.tratamiento}
+                  onChange={(val) => setForm(prev => ({ ...prev, tratamiento: val }))}
+                  placeholder="Tratamiento indicado"
+                />
+                <FormField
+                  label="Indicaciones"
+                  value={form.indicaciones}
+                  onChange={(val) => setForm(prev => ({ ...prev, indicaciones: val }))}
+                  placeholder="Indicaciones para el paciente"
+                />
+                <FormField
+                  label="Notas clínicas / observaciones"
+                  value={form.notasClinicas}
+                  onChange={(val) => setForm(prev => ({ ...prev, notasClinicas: val }))}
+                  placeholder="Notas adicionales de la consulta"
+                />
+              </div>
+              {consultaValidationError && (
+                <p className="text-sm text-rose-600">{consultaValidationError}</p>
+              )}
+              {consultaError && (
+                <p className="text-sm text-rose-600">{consultaError}</p>
+              )}
+              {consultaSuccess && (
+                <p className="text-sm text-emerald-600 font-medium">Consulta guardada correctamente.</p>
+              )}
+              <div className="flex justify-end pt-2">
+                <Button
+                  className="h-10 bg-primary hover:bg-primary-dark"
+                  onClick={handleGuardarConsulta}
+                  disabled={savingConsulta}
+                >
+                  {savingConsulta ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList className="w-4 h-4 mr-2" />
+                      Guardar consulta
+                    </>
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal detalle consulta — se abre encima del modal principal */}
+      {consultaSeleccionada && (
+        <ConsultaDetalleModal
+          consulta={consultaSeleccionada}
+          onClose={() => setConsultaSeleccionada(null)}
+        />
+      )}
+    </>
   );
 }
