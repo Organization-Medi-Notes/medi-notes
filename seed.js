@@ -39,7 +39,7 @@ const DOCTOR_ID = "medico_demo_1";
 const CANTIDAD_PACIENTES = 1;  // cuántos pacientes querés
 const CONSULTAS_POR_PACIENTE = 10;  // cuántas consultas por paciente
 
-// ── Datos aleatorios ──
+// ── Datos aleatorios ── 
 const NOMBRES = ["Carlos", "María", "Luis", "Ana", "Jorge", "Sofía", "Diego", "Valentina", "Andrés", "Natalia", "Roberto", "Paola", "Miguel", "Laura", "Esteban"];
 const APELLIDOS = ["González", "Mora", "Jiménez", "Rodríguez", "Castro", "Vargas", "Solano", "Pérez", "Méndez", "Araya", "Quesada", "Herrera", "Blanco", "Campos", "Núñez"];
 const SEXOS = ["masculino", "femenino"];
