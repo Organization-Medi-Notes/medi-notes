@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye } from "lucide-react";
+import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye, X, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, Timestamp, addDoc } from "firebase/firestore";
+import { Input } from "@/components/ui/input";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, Timestamp, addDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase/config";
 
@@ -149,7 +150,6 @@ function FormField({ label, required, value, onChange, placeholder }: {
   );
 }
 
-// ── Modal de detalle de consulta — solo lectura ──
 function ConsultaDetalleModal({ consulta, onClose }: { consulta: Consulta; onClose: () => void }) {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -172,7 +172,6 @@ function ConsultaDetalleModal({ consulta, onClose }: { consulta: Consulta; onClo
               <InfoRow label="Notas clínicas" value={consulta.notasClinicas} />
             </div>
           </div>
-
           {consulta.diagnostico && consulta.diagnostico.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -187,7 +186,6 @@ function ConsultaDetalleModal({ consulta, onClose }: { consulta: Consulta; onClo
               </div>
             </div>
           )}
-
           <div className="flex justify-end pt-2 border-t border-gray-100">
             <Button variant="outline" className="h-9" onClick={onClose}>
               Cerrar
@@ -210,20 +208,35 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados nueva consulta
   const [form, setForm] = useState<NuevaConsultaForm>(FORM_INICIAL);
   const [savingConsulta, setSavingConsulta] = useState(false);
   const [consultaSuccess, setConsultaSuccess] = useState(false);
   const [consultaError, setConsultaError] = useState<string | null>(null);
   const [consultaValidationError, setConsultaValidationError] = useState<string | null>(null);
 
-  // Estado detalle consulta
   const [consultaSeleccionada, setConsultaSeleccionada] = useState<Consulta | null>(null);
+
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [savingTag, setSavingTag] = useState(false);
 
   useEffect(() => {
     if (!patient?.id || !isOpen) return;
 
     setDocumentos(patient.documentos || []);
+
+    // Leer tags frescos desde Firestore en lugar del objeto patient
+    const fetchPatientData = async () => {
+      try {
+        const pacienteSnap = await getDoc(doc(db, "pacientes", patient.id));
+        if (pacienteSnap.exists()) {
+          setTags(pacienteSnap.data()?.tags || []);
+        }
+      } catch (error) {
+        console.error("Error cargando datos del paciente:", error);
+        setTags(patient.tags || []);
+      }
+    };
 
     const fetchConsultas = async () => {
       setLoadingConsultas(true);
@@ -269,6 +282,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       }
     };
 
+    fetchPatientData();
     fetchConsultas();
     fetchCitas();
   }, [patient?.id, isOpen]);
@@ -348,7 +362,6 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       setConsultaSuccess(true);
       setTimeout(() => setConsultaSuccess(false), 3000);
 
-      // Recargar historial de consultas
       const q = query(
         collection(db, "consultas"),
         where("pacienteId", "==", patient.id),
@@ -362,6 +375,47 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       setConsultaError("Ocurrió un error al guardar la consulta. Intentá de nuevo.");
     } finally {
       setSavingConsulta(false);
+    }
+  };
+
+  const handleAddTag = async () => {
+    const nuevoTag = tagInput.trim();
+    if (!nuevoTag) return;
+    if (tags.includes(nuevoTag)) { setTagInput(""); return; }
+    if (tags.length >= 20) return;
+
+    setSavingTag(true);
+    try {
+      await updateDoc(doc(db, "pacientes", patient.id), {
+        tags: arrayUnion(nuevoTag),
+      });
+      setTags(prev => [...prev, nuevoTag]);
+      setTagInput("");
+    } catch (error) {
+      console.error("Error agregando tag:", error);
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    setSavingTag(true);
+    try {
+      await updateDoc(doc(db, "pacientes", patient.id), {
+        tags: arrayRemove(tag),
+      });
+      setTags(prev => prev.filter(t => t !== tag));
+    } catch (error) {
+      console.error("Error eliminando tag:", error);
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddTag();
     }
   };
 
@@ -386,7 +440,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               <TabsTrigger value="nueva-consulta">Nueva consulta</TabsTrigger>
             </TabsList>
 
-            {/* PESTAÑA 1 — Información general — sin tocar */}
+            {/* PESTAÑA 1 — Información general */}
             <TabsContent value="info" className="space-y-6">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Datos personales</p>
@@ -430,9 +484,69 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                   <InfoRow label="Número de póliza" value={patient.numeroPoliza} />
                 </div>
               </div>
+
+              {/* SECCIÓN ETIQUETAS */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Etiquetas
+                  {tags.length > 0 && (
+                    <span className="ml-2 text-gray-400 font-normal normal-case">
+                      ({tags.length}/20)
+                    </span>
+                  )}
+                </p>
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1 px-2.5 py-0.5 bg-violet-50 text-violet-700 text-xs rounded-full font-medium"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          disabled={savingTag}
+                          className="hover:text-violet-900 transition-colors ml-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {tags.length < 20 && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                      placeholder="Escribí una etiqueta y presioná Enter"
+                      className="h-9 text-sm border-gray-200 focus:ring-primary rounded-lg"
+                      disabled={savingTag}
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-9 shrink-0"
+                      onClick={handleAddTag}
+                      disabled={savingTag || !tagInput.trim()}
+                    >
+                      {savingTag ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+                {tags.length === 0 && !savingTag && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    No hay etiquetas asignadas todavía.
+                  </p>
+                )}
+              </div>
             </TabsContent>
 
-            {/* PESTAÑA 2 — Historial de consultas — filas clickeables */}
+            {/* PESTAÑA 2 — Historial de consultas — sin tocar */}
             <TabsContent value="historial">
               {loadingConsultas ? (
                 <div className="flex flex-col items-center justify-center h-48 text-gray-400">
@@ -644,7 +758,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
         </DialogContent>
       </Dialog>
 
-      {/* Modal detalle consulta — se abre encima del modal principal */}
+      {/* Modal detalle consulta — sin tocar */}
       {consultaSeleccionada && (
         <ConsultaDetalleModal
           consulta={consultaSeleccionada}
