@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,12 +25,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { patientService } from "@/lib/firebase/db-service";
 import { useToast } from "@/hooks/use-toast";
 import { getAuth } from "firebase/auth";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, doc, updateDoc } from "firebase/firestore";
 
+// Define the patient schema with Zod
 const patientSchema = z.object({
+  id: z.string().optional(), // To store the patient's ID when editing
   nombre: z.string().min(1, "El nombre es requerido"),
   apellidos: z.string().min(1, "Los apellidos son requeridos"),
-  fechaNacimiento: z.coerce.date(),
+  fechaNacimiento: z.union([
+    // Allow Date objects directly
+    z.instanceof(Date),
+    // Transform string input into a Date object
+    z.string().refine((val) => !isNaN(new Date(val).getTime()), {
+      message: "Fecha inválida",
+    }).transform((val) => new Date(val)),
+  ]),
   cedula: z.string().optional(),
   sexo: z.enum(["masculino", "femenino", "otro"]),
   telefono: z.string().optional(),
@@ -46,29 +54,41 @@ const patientSchema = z.object({
   antecedentesPersonales: z.string().optional(),
   aseguradora: z.string().optional(),
   numeroPoliza: z.string().optional(),
+  // Fields that should not be modified (read-only in form, but present for completeness)
+  fechaRegistro: z.any().optional(),
+  creadoPor: z.string().optional(),
+  activo: z.boolean().optional(),
 });
 
-export function NewPatientForm({ onFinished }) {
+// Default values for a new patient
+const defaultPatientValues = {
+  nombre: "",
+  apellidos: "",
+  fechaNacimiento: new Date(),
+  cedula: "",
+  sexo: "masculino",
+  telefono: "",
+  email: "",
+  direccion: "",
+  contactoEmergenciaNombre: "",
+  contactoEmergenciaTelefono: "",
+  grupoSanguineo: "",
+  aseguradora: "",
+  numeroPoliza: "",
+  antecedentesFamiliares: "",
+  antecedentesPersonales: "",
+  alergias: [],
+  medicamentosActuales: [],
+  fechaRegistro: null,
+  creadoPor: "",
+  activo: true,
+};
+
+export function NewPatientForm({ onFinished, patientToEdit }) {
   const { toast } = useToast();
   const form = useForm({
     resolver: zodResolver(patientSchema),
-    defaultValues: {
-      nombre: "",
-      apellidos: "",
-      cedula: "",
-      telefono: "",
-      email: "",
-      direccion: "",
-      contactoEmergenciaNombre: "",
-      contactoEmergenciaTelefono: "",
-      grupoSanguineo: "",
-      aseguradora: "",
-      numeroPoliza: "",
-      antecedentesFamiliares: "",
-      antecedentesPersonales: "",
-      alergias: [],
-      medicamentosActuales: [],
-    },
+    defaultValues: defaultPatientValues, // Use default values for new patients
   });
 
   const {
@@ -89,31 +109,93 @@ export function NewPatientForm({ onFinished }) {
     name: "medicamentosActuales",
   });
 
-  const onSubmit = async (values) => {
-    try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      const dataToSave = {
-        ...values,
-        activo: true,
-        fechaRegistro: Timestamp.now(),
-        creadoPor: user.uid,
-        fechaNacimiento: Timestamp.fromDate(values.fechaNacimiento),
-        alergias: values.alergias.map((a) => a.value),
-        medicamentosActuales: values.medicamentosActuales.map((m) => m.value),
+  // Effect to pre-fill form when patientToEdit changes
+  useEffect(() => {
+    if (patientToEdit) {
+      // Transform fetched data to match form structure for editing
+      const transformedPatient = {
+        ...patientToEdit,
+        fechaNacimiento: patientToEdit.fechaNacimiento instanceof Timestamp
+          ? patientToEdit.fechaNacimiento.toDate()
+          : patientToEdit.fechaNacimiento instanceof Date
+            ? patientToEdit.fechaNacimiento
+            : new Date(defaultPatientValues.fechaNacimiento), // Use default if invalid
+        alergias: (patientToEdit.alergias || []).map((allergy) => ({ value: allergy })),
+        medicamentosActuales: (patientToEdit.medicamentosActuales || []).map((med) => ({ value: med })),
+        // Keep read-only fields
+        fechaRegistro: patientToEdit.fechaRegistro,
+        creadoPor: patientToEdit.creadoPor,
+        activo: patientToEdit.activo,
       };
+      form.reset(transformedPatient);
+    } else {
+      // Reset to default values for new patient creation
+      form.reset(defaultPatientValues);
+    }
+  }, [patientToEdit, form.reset]);
 
-      await patientService.add(dataToSave);
+  const onSubmit = async (values) => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    // Validate required fields
+    if (!values.nombre || !values.apellidos || !values.cedula || !values.fechaNacimiento) {
       toast({
-        title: "Éxito",
-        description: "Paciente registrado correctamente.",
+        title: "Error de validación",
+        description: "Por favor, complete los campos obligatorios: Nombre, Apellidos, Cédula y Fecha de Nacimiento.",
+        variant: "destructive",
       });
-      onFinished();
+      return;
+    }
+
+    // Prepare data for saving, ensuring fechaNacimiento is a Timestamp
+    const dataToSave = {
+      ...values,
+      fechaNacimiento: values.fechaNacimiento instanceof Date
+        ? Timestamp.fromDate(values.fechaNacimiento)
+        : values.fechaNacimiento, // Keep as is if it's already a Timestamp or string
+      alergias: values.alergias.map((a) => a.value).filter(Boolean),
+      medicamentosActuales: values.medicamentosActuales.map((m) => m.value).filter(Boolean),
+    };
+
+    // Remove fields that should not be updated or are internal
+    delete dataToSave.fechaRegistro;
+    delete dataToSave.creadoPor;
+    delete dataToSave.id; // Ensure the 'id' field is not included in the data to save
+
+    const patientId = patientToEdit?.id; // Get the ID from the prop
+
+    try {
+      if (patientId) {
+        // Update existing patient using the patientId
+        const patientRef = doc(patientService.db, "pacientes", patientId);
+        await updateDoc(patientRef, dataToSave);
+        toast({
+          title: "Éxito",
+          description: "Paciente actualizado correctamente.",
+        });
+      } else {
+        // Add new patient
+        const newDataToSave = {
+          ...dataToSave,
+          fechaRegistro: Timestamp.now(),
+          creadoPor: user?.uid || "unknown",
+          activo: true, // New patients are active by default
+        };
+        await patientService.add(newDataToSave);
+        toast({
+          title: "Éxito",
+          description: "Paciente registrado correctamente.",
+        });
+      }
+      onFinished(); // Close modal and refresh list
     } catch (error) {
-      console.error(error);
+      console.error("Error saving patient:", error);
       toast({
         title: "Error",
-        description: "Ocurrió un error al registrar el paciente.",
+        description: patientId
+          ? "Ocurrió un error al actualizar el paciente."
+          : "Ocurrió un error al registrar el paciente.",
         variant: "destructive",
       });
     }
@@ -156,7 +238,22 @@ export function NewPatientForm({ onFinished }) {
               <FormItem>
                 <FormLabel>Fecha de Nacimiento</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''} />
+                  <Input
+                    type="date"
+                    {...field}
+                    // Ensure the date input displays correctly
+                    value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''}
+                    onChange={(e) => {
+                      const dateString = e.target.value;
+                      if (dateString) {
+                        const date = new Date(dateString);
+                        // Only update if the date is valid
+                        field.onChange(isNaN(date.getTime()) ? undefined : date);
+                      } else {
+                        field.onChange(undefined); // Handle empty input
+                      }
+                    }}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -183,7 +280,7 @@ export function NewPatientForm({ onFinished }) {
                 <FormLabel>Sexo</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -312,9 +409,17 @@ export function NewPatientForm({ onFinished }) {
             <div className="space-y-2 mt-2">
               {alergiasFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  <Input
-                    {...form.register(`alergias.${index}.value`)}
-                    className="flex-grow"
+                  <FormField
+                    control={form.control}
+                    name={`alergias.${index}.value`}
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                   <Button
                     type="button"
@@ -343,9 +448,17 @@ export function NewPatientForm({ onFinished }) {
             <div className="space-y-2 mt-2">
               {medicamentosFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  <Input
-                    {...form.register(`medicamentosActuales.${index}.value`)}
-                    className="flex-grow"
+                  <FormField
+                    control={form.control}
+                    name={`medicamentosActuales.${index}.value`}
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                   <Button
                     type="button"
@@ -399,7 +512,7 @@ export function NewPatientForm({ onFinished }) {
 
         <div className="flex justify-end pt-4">
           <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Guardando..." : "Guardar Paciente"}
+            {form.formState.isSubmitting ? "Guardando..." : (patientToEdit ? "Actualizar Paciente" : "Guardar Paciente")}
           </Button>
         </div>
       </form>
