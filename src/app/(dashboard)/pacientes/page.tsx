@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { patientService } from "@/lib/firebase/db-service";
 import { NewPatientForm } from "./components/NewPatientForm";
+import { PatientProfileModal } from "../pacientes/PatientProfileModal"
+
 
 export default function PatientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,6 +37,8 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profilePatient, setProfilePatient] = useState<any | null>(null);
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -54,7 +58,6 @@ export default function PatientsPage() {
 
   const handleCloseDialog = useCallback(() => {
     setIsFormOpen(false);
-    // Limpiar selectedPatient después de que el dialog termine de cerrarse
     setTimeout(() => setSelectedPatient(null), 300);
   }, []);
 
@@ -65,13 +68,22 @@ export default function PatientsPage() {
 
   const handleEditPatient = useCallback((patient: any) => {
     setSelectedPatient(patient);
-    // Pequeño delay para que el DropdownMenu termine de cerrarse antes de abrir el Dialog
     setTimeout(() => setIsFormOpen(true), 100);
   }, []);
 
   const handleOpenNewPatientForm = useCallback(() => {
     setSelectedPatient(null);
     setIsFormOpen(true);
+  }, []);
+
+  const handleOpenProfile = useCallback((patient: any) => {
+    setProfilePatient(patient);
+    setIsProfileOpen(true);
+  }, []);
+
+  const handleCloseProfile = useCallback(() => {
+    setIsProfileOpen(false);
+    setTimeout(() => setProfilePatient(null), 300);
   }, []);
 
   const filteredPatients = patients.filter(p => 
@@ -142,11 +154,16 @@ export default function PatientsPage() {
                 <TableRow key={p.id} className="hover:bg-primary-light/30 transition-colors">
                   <TableCell className="font-code text-xs text-gray-500">{p.numero_expediente || 'N/A'}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-3">
+                    <div
+                      className="flex items-center gap-3 cursor-pointer"
+                      onClick={() => handleOpenProfile(p)}
+                    >
                       <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
                         <User className="w-4 h-4 text-gray-400" />
                       </div>
-                      <span className="font-semibold text-gray-900">{p.nombre} {p.apellidos}</span>
+                      <span className="font-semibold text-gray-900 hover:text-primary transition-colors">
+                        {p.nombre} {p.apellidos}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-gray-600">{p.edad} años</TableCell>
@@ -172,7 +189,7 @@ export default function PatientsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="cursor-pointer"
                           onSelect={(e) => {
                             e.preventDefault();
@@ -194,6 +211,7 @@ export default function PatientsPage() {
         )}
       </div>
 
+      {/* Modal edición — sin tocar */}
       <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseDialog(); }}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -207,6 +225,13 @@ export default function PatientsPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Modal perfil — nuevo */}
+      <PatientProfileModal
+        patient={profilePatient}
+        isOpen={isProfileOpen}
+        onClose={handleCloseProfile}
+      />
     </div>
   );
 }
