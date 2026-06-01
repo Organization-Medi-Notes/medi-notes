@@ -26,10 +26,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
 import { patientService } from "@/lib/firebase/db-service";
 import { NewPatientForm } from "./components/NewPatientForm";
-import { PatientProfileModal } from "../pacientes/PatientProfileModal"
-
+import { PatientProfileModal } from "../pacientes/PatientProfileModal";
 
 export default function PatientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,6 +40,9 @@ export default function PatientsPage() {
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profilePatient, setProfilePatient] = useState<any | null>(null);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [patientToArchive, setPatientToArchive] = useState<any | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -86,11 +90,39 @@ export default function PatientsPage() {
     setTimeout(() => setProfilePatient(null), 300);
   }, []);
 
+  const handleOpenArchiveDialog = useCallback((patient: any) => {
+    setPatientToArchive(patient);
+    setTimeout(() => setIsArchiveDialogOpen(true), 100);
+  }, []);
+
+  const handleCloseArchiveDialog = useCallback(() => {
+    setIsArchiveDialogOpen(false);
+    setTimeout(() => setPatientToArchive(null), 300);
+  }, []);
+
+  const handleConfirmArchive = useCallback(async () => {
+    if (!patientToArchive?.id) return;
+    setArchiving(true);
+    try {
+      await updateDoc(doc(db, "pacientes", patientToArchive.id), {
+        activo: patientToArchive.activo ? false : true,
+      });
+      await loadPatients();
+      handleCloseArchiveDialog();
+    } catch (error) {
+      console.error("Error actualizando estado del paciente:", error);
+    } finally {
+      setArchiving(false);
+    }
+  }, [patientToArchive, loadPatients, handleCloseArchiveDialog]);
+
   const filteredPatients = patients.filter(p => 
     p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const isArchiving = patientToArchive?.activo === true;
 
   return (
     <div className="space-y-8">
@@ -198,8 +230,17 @@ export default function PatientsPage() {
                         >
                           Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-rose-600">
-                          Archivar
+                        <DropdownMenuItem
+                          className={cn(
+                            "cursor-pointer",
+                            p.activo ? "text-rose-600" : "text-emerald-600"
+                          )}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            handleOpenArchiveDialog(p);
+                          }}
+                        >
+                          {p.activo ? "Archivar" : "Desarchivar"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -226,12 +267,62 @@ export default function PatientsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal perfil — nuevo */}
+      {/* Modal perfil — sin tocar */}
       <PatientProfileModal
         patient={profilePatient}
         isOpen={isProfileOpen}
         onClose={handleCloseProfile}
       />
+
+      {/* Modal confirmación archivar / desarchivar */}
+      <Dialog open={isArchiveDialogOpen} onOpenChange={(open) => { if (!open) handleCloseArchiveDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">
+              {isArchiving ? "Archivar paciente" : "Desarchivar paciente"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 mt-2">
+            ¿Estás seguro que querés {isArchiving ? "archivar" : "desarchivar"} a{" "}
+            <span className="font-semibold text-gray-900">
+              {patientToArchive?.nombre} {patientToArchive?.apellidos}
+            </span>
+            ?{" "}
+            {isArchiving
+              ? "Esta acción lo marcará como inactivo y podrá revertirse en el futuro."
+              : "Esta acción lo marcará como activo nuevamente."}
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={handleCloseArchiveDialog}
+              disabled={archiving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className={cn(
+                "h-9 text-white",
+                isArchiving
+                  ? "bg-rose-600 hover:bg-rose-700"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              )}
+              onClick={handleConfirmArchive}
+              disabled={archiving}
+            >
+              {archiving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {isArchiving ? "Archivando..." : "Desarchivando..."}
+                </>
+              ) : (
+                isArchiving ? "Archivar" : "Desarchivar"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
