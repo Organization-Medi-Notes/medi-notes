@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  FileText, ArrowLeft, Loader2, User, ClipboardList,
-  Calendar, CheckCircle, CalendarDays, Clock
+  ArrowLeft, Loader2, User, ClipboardList,
+  Calendar, CheckCircle, CalendarDays, Clock,
+  AlertTriangle, Pill, BookOpen, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,10 @@ interface Paciente {
   fechaNacimiento: any;
   activo: boolean;
   tags: string[];
+  alergias?: string[];
+  medicamentosActuales?: string[];
+  antecedentesFamiliares?: string;
+  antecedentesPersonales?: string;
 }
 
 interface Stats {
@@ -66,6 +71,116 @@ function StatCard({ icon, value, label, color }: {
   );
 }
 
+function AlertasMedicas({ paciente }: { paciente: Paciente }) {
+  const alergias = paciente.alergias ?? [];
+  const medicamentos = paciente.medicamentosActuales ?? [];
+  const antFamiliares = paciente.antecedentesFamiliares ?? "";
+  const antPersonales = paciente.antecedentesPersonales ?? "";
+
+  const tieneAlgo = alergias.length > 0 || medicamentos.length > 0 || antFamiliares || antPersonales;
+  if (!tieneAlgo) return null;
+
+  const bannerClass = alergias.length > 0
+    ? "bg-rose-50 border border-rose-200"
+    : medicamentos.length > 0
+      ? "bg-amber-50 border border-amber-200"
+      : "bg-gray-50 border border-gray-200";
+
+  return (
+    <div className={`rounded-xl p-5 ${bannerClass}`}>
+      {/* Banner header */}
+      <div className="flex items-center gap-2 mb-4">
+        <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+        <p className="text-sm font-bold text-rose-700 uppercase tracking-wide">
+          Alertas médicas importantes
+        </p>
+      </div>
+
+      {/* Tres columnas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 divide-y md:divide-y-0 md:divide-x divide-rose-200/60">
+
+        {/* Columna 1 — Alergias */}
+        <div className="pt-4 md:pt-0 md:pr-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Alergias {alergias.length > 0 && `(${alergias.length})`}
+            </p>
+          </div>
+          {alergias.length > 0 ? (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {alergias.map((a, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-full font-medium">
+                    {a}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Verificar antes de prescribir
+              </p>
+            </>
+          ) : (
+            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
+              Sin alergias conocidas
+            </span>
+          )}
+        </div>
+
+        {/* Columna 2 — Medicamentos */}
+        <div className="pt-4 md:pt-0 md:px-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Pill className="w-4 h-4 text-blue-600 shrink-0" />
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Medicamentos {medicamentos.length > 0 && `(${medicamentos.length})`}
+            </p>
+          </div>
+          {medicamentos.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {medicamentos.map((m, i) => (
+                <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                  {m}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Sin medicamentos registrados</p>
+          )}
+        </div>
+
+        {/* Columna 3 — Antecedentes */}
+        <div className="pt-4 md:pt-0 md:pl-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Antecedentes
+            </p>
+          </div>
+          {antFamiliares || antPersonales ? (
+            <div className="space-y-2">
+              {antFamiliares && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Familiares</p>
+                  <p className="text-xs text-gray-700">{antFamiliares}</p>
+                </div>
+              )}
+              {antPersonales && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Personales</p>
+                  <p className="text-xs text-gray-700">{antPersonales}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Sin antecedentes registrados</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ExpedienteDetallePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -81,7 +196,6 @@ export default function ExpedienteDetallePage() {
     async function loadData() {
       setLoading(true);
       try {
-        // 1. Traer paciente
         const pacienteSnap = await getDoc(doc(db, "pacientes", id));
         if (!pacienteSnap.exists()) {
           setNotFound(true);
@@ -90,7 +204,6 @@ export default function ExpedienteDetallePage() {
         const p = { id: pacienteSnap.id, ...pacienteSnap.data() } as Paciente;
         setPaciente(p);
 
-        // 2. Traer consultas y citas en paralelo
         const [consultasSnap, citasSnap, primeraConsultaSnap] = await Promise.all([
           getDocs(query(collection(db, "consultas"), where("pacienteId", "==", id), orderBy("fecha", "desc"))),
           getDocs(query(collection(db, "citas"), where("pacienteId", "==", id))),
@@ -146,7 +259,7 @@ export default function ExpedienteDetallePage() {
   return (
     <div className="space-y-8">
 
-      {/* Header */}
+      {/* Header — sin tocar */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -176,7 +289,7 @@ export default function ExpedienteDetallePage() {
         </div>
       </div>
 
-      {/* Tags */}
+      {/* Tags — sin tocar */}
       {paciente.tags?.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {paciente.tags.map((tag, i) => (
@@ -187,7 +300,10 @@ export default function ExpedienteDetallePage() {
         </div>
       )}
 
-      {/* Resumen estadístico */}
+      {/* Banner alertas médicas — nuevo */}
+      <AlertasMedicas paciente={paciente} />
+
+      {/* Resumen estadístico — sin tocar */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
           Resumen estadístico
