@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye, X, Plus } from "lucide-react";
+import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye, X, Plus, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, Timestamp, addDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase/config";
+import jsPDF from "jspdf";
 
 interface PatientProfileModalProps {
   patient: any | null;
@@ -220,12 +221,14 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [tagInput, setTagInput] = useState("");
   const [savingTag, setSavingTag] = useState(false);
 
+  // Estado exportar PDF
+  const [exportingPdf, setExportingPdf] = useState(false);
+
   useEffect(() => {
     if (!patient?.id || !isOpen) return;
 
     setDocumentos(patient.documentos || []);
 
-    // Leer tags frescos desde Firestore en lugar del objeto patient
     const fetchPatientData = async () => {
       try {
         const pacienteSnap = await getDoc(doc(db, "pacientes", patient.id));
@@ -286,6 +289,210 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     fetchConsultas();
     fetchCitas();
   }, [patient?.id, isOpen]);
+
+  // ── Exportar PDF ──
+  const handleExportPdf = async () => {
+    if (!patient) return;
+    setExportingPdf(true);
+
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 18;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      const checkPage = (needed: number = 10) => {
+        if (y + needed > pageH - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+      };
+
+      const addTitle = (text: string) => {
+        checkPage(12);
+        pdf.setFontSize(20);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(30, 58, 95);
+        pdf.text(text, margin, y);
+        y += 8;
+      };
+
+      const addSubtitle = (text: string) => {
+        checkPage(10);
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(text.toUpperCase(), margin, y);
+        y += 1;
+        pdf.setDrawColor(200, 200, 220);
+        pdf.line(margin, y, margin + contentW, y);
+        y += 5;
+      };
+
+      const addField = (label: string, value: string) => {
+        const lines = pdf.splitTextToSize(`${label}: ${value || "—"}`, contentW);
+        checkPage(lines.length * 5 + 2);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`${label}:`, margin, y);
+        const labelW = pdf.getTextWidth(`${label}: `);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(40, 40, 40);
+        const valueLines = pdf.splitTextToSize(value || "—", contentW - labelW);
+        pdf.text(valueLines, margin + labelW, y);
+        y += valueLines.length * 5 + 1;
+      };
+
+      const addText = (text: string) => {
+        const lines = pdf.splitTextToSize(text, contentW);
+        checkPage(lines.length * 5 + 2);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(40, 40, 40);
+        pdf.text(lines, margin, y);
+        y += lines.length * 5 + 1;
+      };
+
+      const addSpacer = (h: number = 5) => { y += h; };
+
+      // ── ENCABEZADO ──
+      addTitle(`${patient.nombre} ${patient.apellidos}`);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(130, 130, 130);
+      pdf.text(`Ficha generada el ${new Date().toLocaleDateString("es-CR", { year: "numeric", month: "long", day: "numeric" })}`, margin, y);
+      y += 10;
+
+      // ── DATOS PERSONALES ──
+      addSubtitle("Datos personales");
+      addField("Cédula", patient.cedula);
+      addField("Fecha de nacimiento", formatFecha(patient.fechaNacimiento));
+      addField("Sexo", patient.sexo);
+      addField("Grupo sanguíneo", patient.grupoSanguineo);
+      addSpacer();
+
+      // ── CONTACTO ──
+      addSubtitle("Contacto");
+      addField("Teléfono", patient.telefono);
+      addField("Email", patient.email);
+      addField("Dirección", patient.direccion);
+      addSpacer();
+
+      // ── CONTACTO DE EMERGENCIA ──
+      addSubtitle("Contacto de emergencia");
+      addField("Nombre", patient.contactoEmergenciaNombre);
+      addField("Teléfono", patient.contactoEmergenciaTelefono);
+      addSpacer();
+
+      // ── INFORMACIÓN MÉDICA ──
+      addSubtitle("Información médica");
+      addField("Alergias", patient.alergias?.length > 0 ? patient.alergias.join(", ") : "—");
+      addField("Medicamentos actuales", patient.medicamentosActuales?.length > 0 ? patient.medicamentosActuales.join(", ") : "—");
+      addField("Antecedentes familiares", patient.antecedentesFamiliares);
+      addField("Antecedentes personales", patient.antecedentesPersonales);
+      addSpacer();
+
+      // ── SEGURO ──
+      addSubtitle("Seguro");
+      addField("Aseguradora", patient.aseguradora);
+      addField("Número de póliza", patient.numeroPoliza);
+      addSpacer();
+
+      // ── ETIQUETAS ──
+      addSubtitle("Etiquetas");
+      addText(tags.length > 0 ? tags.join("  ·  ") : "—");
+      addSpacer();
+
+    // ── HISTORIAL DE CONSULTAS ──
+    addSubtitle("Historial de consultas");
+    if (consultas.length === 0) {
+    addText("Sin consultas registradas");
+    } else {
+    consultas.forEach((c, i) => {
+        checkPage(14);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(40, 40, 40);
+        pdf.text(`${i + 1}. ${formatFecha(c.fecha)}`, margin, y);
+        y += 5;
+
+        const camposConsulta = [
+        { label: "Motivo", value: c.motivoConsulta },
+        { label: "Examen físico", value: c.examenFisico },
+        { label: "Diagnóstico", value: c.diagnostico?.length > 0 ? c.diagnostico.join(", ") : undefined },
+        { label: "Tratamiento", value: c.tratamiento },
+        { label: "Indicaciones", value: c.indicaciones },
+        { label: "Notas clínicas", value: c.notasClinicas },
+        ];
+
+        camposConsulta.forEach(({ label, value }) => {
+        const lineas = pdf.splitTextToSize(`${label}: ${value || "—"}`, contentW - 4);
+        checkPage(lineas.length * 5 + 2);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`${label}:`, margin + 4, y);
+        const labelW = pdf.getTextWidth(`${label}: `);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(80, 80, 80);
+        const valueLineas = pdf.splitTextToSize(value || "—", contentW - 4 - labelW);
+        pdf.text(valueLineas, margin + 4 + labelW, y);
+        y += valueLineas.length * 5 + 1;
+        });
+
+        y += 4; // espacio entre consultas
+    });
+    }
+    addSpacer();
+
+      // ── CITAS ANTERIORES ──
+      addSubtitle("Citas anteriores");
+      if (citas.length === 0) {
+        addText("Sin citas registradas");
+      } else {
+        const estadoLabels: Record<string, string> = {
+          completada: "Completada",
+          cancelada: "Cancelada",
+          "no-asistio": "No asistió",
+          programada: "Programada",
+        };
+        citas.forEach((c, i) => {
+          checkPage(12);
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(40, 40, 40);
+          pdf.text(`${i + 1}. ${formatFecha(c.fecha)}  —  ${estadoLabels[c.estado] ?? c.estado}`, margin, y);
+          y += 5;
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(80, 80, 80);
+          const motivoLines = pdf.splitTextToSize(`Motivo: ${c.motivo || "—"}`, contentW - 4);
+          checkPage(motivoLines.length * 5 + 3);
+          pdf.text(motivoLines, margin + 4, y);
+          y += motivoLines.length * 5 + 3;
+        });
+      }
+
+      // ── FOOTER en todas las páginas ──
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(180, 180, 180);
+        pdf.text(`Medi Notes  ·  Página ${i} de ${totalPages}`, margin, pageH - 8);
+      }
+
+      const nombreArchivo = `ficha-${patient.nombre}-${patient.apellidos}`.replace(/\s+/g, "-").toLowerCase();
+      pdf.save(`${nombreArchivo}.pdf`);
+
+    } catch (error) {
+      console.error("Error generando PDF:", error);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -421,14 +628,35 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
 
   if (!patient) return null;
 
+  const isLoading = loadingConsultas || loadingCitas;
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+          <DialogHeader className="flex flex-row items-center justify-between pr-8">
             <DialogTitle className="text-xl font-bold text-gray-900">
               {patient.nombre} {patient.apellidos}
             </DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-gray-600 shrink-0"
+              onClick={handleExportPdf}
+              disabled={exportingPdf || isLoading}
+            >
+              {exportingPdf ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  Exportar PDF
+                </>
+              )}
+            </Button>
           </DialogHeader>
 
           <Tabs defaultValue="info" className="mt-2">
@@ -440,7 +668,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               <TabsTrigger value="nueva-consulta">Nueva consulta</TabsTrigger>
             </TabsList>
 
-            {/* PESTAÑA 1 — Información general */}
+            {/* PESTAÑA 1 — Información general — sin tocar */}
             <TabsContent value="info" className="space-y-6">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Datos personales</p>
@@ -484,8 +712,6 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                   <InfoRow label="Número de póliza" value={patient.numeroPoliza} />
                 </div>
               </div>
-
-              {/* SECCIÓN ETIQUETAS */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                   Etiquetas
@@ -758,7 +984,6 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
         </DialogContent>
       </Dialog>
 
-      {/* Modal detalle consulta — sin tocar */}
       {consultaSeleccionada && (
         <ConsultaDetalleModal
           consulta={consultaSeleccionada}
