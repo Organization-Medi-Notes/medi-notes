@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, Calendar } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,13 @@ interface Consulta {
   id: string;
   fecha: any;
   motivoConsulta: string;
+}
+
+interface Cita {
+  id: string;
+  fecha: any;
+  motivo: string;
+  estado: string;
 }
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
@@ -66,9 +73,33 @@ function formatFecha(fecha: any): string {
   }
 }
 
+function EstadoBadge({ estado }: { estado: string }) {
+  const styles: Record<string, string> = {
+    completada:  "bg-emerald-50 text-emerald-700",
+    cancelada:   "bg-rose-50 text-rose-700",
+    "no-asistio": "bg-yellow-50 text-yellow-700",
+    programada:  "bg-blue-50 text-blue-700",
+  };
+  const labels: Record<string, string> = {
+    completada:   "Completada",
+    cancelada:    "Cancelada",
+    "no-asistio": "No asistió",
+    programada:   "Programada",
+  };
+  const style = styles[estado] ?? "bg-gray-100 text-gray-500";
+  const label = labels[estado] ?? estado;
+  return (
+    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${style}`}>
+      {label}
+    </span>
+  );
+}
+
 export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfileModalProps) {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loadingConsultas, setLoadingConsultas] = useState(false);
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [loadingCitas, setLoadingCitas] = useState(false);
 
   useEffect(() => {
     if (!patient?.id || !isOpen) return;
@@ -95,7 +126,30 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       }
     };
 
+    const fetchCitas = async () => {
+      setLoadingCitas(true);
+      try {
+        const q = query(
+          collection(db, "citas"),
+          where("pacienteId", "==", patient.id),
+          orderBy("fecha", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Cita[];
+        setCitas(data);
+      } catch (error) {
+        console.error("Error cargando citas:", error);
+        setCitas([]);
+      } finally {
+        setLoadingCitas(false);
+      }
+    };
+
     fetchConsultas();
+    fetchCitas();
   }, [patient?.id, isOpen]);
 
   if (!patient) return null;
@@ -113,9 +167,10 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
           <TabsList className="mb-4">
             <TabsTrigger value="info">Información general</TabsTrigger>
             <TabsTrigger value="historial">Historial de consultas</TabsTrigger>
+            <TabsTrigger value="citas">Citas anteriores</TabsTrigger>
           </TabsList>
 
-          {/* PESTAÑA 1 — Información general */}
+          {/* PESTAÑA 1 — Información general — sin tocar */}
           <TabsContent value="info" className="space-y-6">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Datos personales</p>
@@ -165,7 +220,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
             </div>
           </TabsContent>
 
-          {/* PESTAÑA 2 — Historial de consultas */}
+          {/* PESTAÑA 2 — Historial de consultas — sin tocar */}
           <TabsContent value="historial">
             {loadingConsultas ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
@@ -188,6 +243,39 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                     <div className="flex-1">
                       <span className="text-xs text-gray-400 block">Motivo</span>
                       <span className="text-sm text-gray-800">{c.motivoConsulta || "—"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* PESTAÑA 3 — Citas anteriores — nuevo */}
+          <TabsContent value="citas">
+            {loadingCitas ? (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                <p className="text-sm">Cargando citas...</p>
+              </div>
+            ) : citas.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                <Calendar className="w-10 h-10 mb-2 opacity-20" />
+                <p className="text-sm">Este paciente no tiene citas anteriores registradas.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {citas.map((c) => (
+                  <div key={c.id} className="flex items-start gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+                    <div className="min-w-[120px]">
+                      <span className="text-xs text-gray-400 block">Fecha</span>
+                      <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-xs text-gray-400 block">Motivo</span>
+                      <span className="text-sm text-gray-800">{c.motivo || "—"}</span>
+                    </div>
+                    <div className="min-w-[100px] flex justify-end">
+                      <EstadoBadge estado={c.estado} />
                     </div>
                   </div>
                 ))}
