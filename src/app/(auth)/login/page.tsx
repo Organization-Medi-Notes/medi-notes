@@ -7,7 +7,16 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { auth, db } from '@/lib/firebase/config';
 
 
@@ -17,6 +26,31 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const MAX_FAILED_ATTEMPTS = 3;
+const LOCK_TIME_MINUTES = 5;
+const getUserProfileByEmail = async (email: string) => {
+  const usersRef = collection(db, "usuarios");
+
+  const userQuery = query(
+    usersRef,
+    where("email", "==", email),
+    limit(1)
+  );
+
+  const userSnapshot = await getDocs(userQuery);
+
+  if (userSnapshot.empty) {
+    return null;
+  }
+
+  const userDoc = userSnapshot.docs[0];
+
+  return {
+    id: userDoc.id,
+    ref: userDoc.ref,
+    data: userDoc.data(),
+  };
+};
 
   const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -31,6 +65,29 @@ export default function LoginPage() {
   }
 
   setLoading(true);
+  const profile = await getUserProfileByEmail(formData.email);
+
+if (profile) {
+  const blockedUntil = profile.data.bloqueadoHasta;
+
+  if (blockedUntil) {
+    const blockDate = blockedUntil.toDate
+      ? blockedUntil.toDate()
+      : new Date(blockedUntil);
+
+    if (blockDate > new Date()) {
+      toast({
+        title: "Cuenta bloqueada",
+        description:
+          "Demasiados intentos fallidos. Intente nuevamente más tarde.",
+        variant: "destructive",
+      });
+
+      setLoading(false);
+      return;
+    }
+  }
+}
 
   try {
     const userCredential = await signInWithEmailAndPassword(
@@ -69,8 +126,10 @@ export default function LoginPage() {
     }
 
     await updateDoc(userRef, {
-      ultimoAcceso: new Date(),
-    });
+  ultimoAcceso: new Date(),
+  intentosFallidos: 0,
+  bloqueadoHasta: null,
+});
 
     toast({
       title: "Bienvenido",
@@ -79,14 +138,44 @@ export default function LoginPage() {
 
     router.push("/");
   } catch (error) {
-    toast({
-      title: "Error",
-      description: "Correo o contraseña incorrectos.",
-      variant: "destructive",
+  const profile = await getUserProfileByEmail(formData.email);
+
+  if (profile) {
+    const currentAttempts = profile.data.intentosFallidos ?? 0;
+    const newAttempts = currentAttempts + 1;
+
+    if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+      const blockedUntil = new Date();
+      blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
+
+      await updateDoc(profile.ref, {
+        intentosFallidos: newAttempts,
+        bloqueadoHasta: blockedUntil,
+      });
+
+      toast({
+        title: "Cuenta bloqueada",
+        description:
+          "Demasiados intentos fallidos. La cuenta fue bloqueada temporalmente por 5 minutos.",
+        variant: "destructive",
+      });
+
+      return;
+    }
+
+    await updateDoc(profile.ref, {
+      intentosFallidos: newAttempts,
     });
-  } finally {
-    setLoading(false);
   }
+
+  toast({
+    title: "Error",
+    description: "Correo o contraseña incorrectos.",
+    variant: "destructive",
+  });
+} finally {
+  setLoading(false);
+}
 };
 
   return (
