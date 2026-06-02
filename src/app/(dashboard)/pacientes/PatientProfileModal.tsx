@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, Timestamp, addDoc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase/config";
+import { db, auth } from "@/lib/firebase/config";
 import jsPDF from "jspdf";
 
 interface PatientProfileModalProps {
@@ -42,9 +41,12 @@ interface Cita {
 }
 
 interface Documento {
+  id?: string;
   nombre: string;
   url: string;
-  fechaSubida: any;
+  tipo: "pdf" | "imagen";
+  tamaño: number;
+  creado_en: any;
 }
 
 interface NuevaConsultaForm {
@@ -114,6 +116,13 @@ function formatFecha(fecha: any): string {
   } catch {
     return "—";
   }
+}
+
+function formatTamaño(bytes: number): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getFechaMs(fecha: any): number {
@@ -217,7 +226,6 @@ function ConsultaDetalleModal({ consulta, onClose }: { consulta: Consulta; onClo
   );
 }
 
-// ── Punto de color para la línea de tiempo ──
 function TimelineDot({ tipo, estado }: { tipo: string; estado?: string }) {
   let color = "bg-blue-400";
   if (tipo === "documento") color = "bg-violet-400";
@@ -234,8 +242,13 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [loadingConsultas, setLoadingConsultas] = useState(false);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loadingCitas, setLoadingCitas] = useState(false);
+
+  // ── Estado documentos — reemplazado para Cloudinary ──
   const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [loadingDocumentos, setLoadingDocumentos] = useState(false);
+  const [archivoSeleccionado, setArchivoSeleccionado] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -252,14 +265,30 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [savingTag, setSavingTag] = useState(false);
 
   const [exportingPdf, setExportingPdf] = useState(false);
-
-  // Estado filtro timeline
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("todo");
+
+  // ── Cargar documentos desde Firestore ──
+  const fetchDocumentos = async (pacienteId: string) => {
+    setLoadingDocumentos(true);
+    try {
+      const q = query(
+        collection(db, "documentos"),
+        where("pacienteId", "==", pacienteId),
+        orderBy("creado_en", "desc")
+      );
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Documento[];
+      setDocumentos(data);
+    } catch (error) {
+      console.error("Error cargando documentos:", error);
+      setDocumentos([]);
+    } finally {
+      setLoadingDocumentos(false);
+    }
+  };
 
   useEffect(() => {
     if (!patient?.id || !isOpen) return;
-
-    setDocumentos(patient.documentos || []);
 
     const fetchPatientData = async () => {
       try {
@@ -320,14 +349,14 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     fetchPatientData();
     fetchConsultas();
     fetchCitas();
+    fetchDocumentos(patient.id);
   }, [patient?.id, isOpen]);
 
-  // ── Timeline events combinados y ordenados ──
   const allEvents = useMemo<TimelineEvent[]>(() => {
     const events: TimelineEvent[] = [
       ...consultas.map(c => ({ id: c.id, tipo: "consulta" as const, fecha: c.fecha, data: c })),
       ...citas.map(c => ({ id: c.id, tipo: "cita" as const, fecha: c.fecha, data: c })),
-      ...documentos.map((d, i) => ({ id: `doc-${i}`, tipo: "documento" as const, fecha: d.fechaSubida, data: d })),
+      ...documentos.map((d) => ({ id: d.id ?? d.nombre, tipo: "documento" as const, fecha: d.creado_en, data: d })),
     ];
     return events.sort((a, b) => getFechaMs(b.fecha) - getFechaMs(a.fecha));
   }, [consultas, citas, documentos]);
@@ -337,7 +366,128 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     return allEvents.filter(e => e.tipo === timelineFilter);
   }, [allEvents, timelineFilter]);
 
-  // ── Exportar PDF ──
+  // ── Seleccionar archivo ──
+  const handleSeleccionarArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError("Solo se permiten archivos PDF, JPG o PNG.");
+      return;
+    }
+    setArchivoSeleccionado(file);
+    setUploadError(null);
+    setUploadSuccess(false);
+  };
+
+  // ── Subir a Cloudinary y guardar en Firestore ──
+  const handleSubirDocumento = async () => {
+    if (!archivoSeleccionado || !patient?.id) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(false);
+    setUploadProgress(0);
+
+    try {
+      // Simular progreso mientras sube
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90));
+      }, 200);
+
+      const formData = new FormData();
+      formData.append("file", archivoSeleccionado);
+      formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`,
+        { method: "POST", body: formData }
+      );
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!response.ok) throw new Error("Error al subir a Cloudinary");
+
+      const data = await response.json();
+      const url = data.secure_url;
+
+      await addDoc(collection(db, "documentos"), {
+        pacienteId: patient.id,
+        doctorId: auth.currentUser?.uid ?? "",
+        nombre: archivoSeleccionado.name,
+        tipo: archivoSeleccionado.type.includes("pdf") ? "pdf" : "imagen",
+        url,
+        tamaño: archivoSeleccionado.size,
+        creado_en: Timestamp.now(),
+      });
+
+      setUploadSuccess(true);
+      setArchivoSeleccionado(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await fetchDocumentos(patient.id);
+      setTimeout(() => { setUploadSuccess(false); setUploadProgress(0); }, 3000);
+
+    } catch (error) {
+      console.error("Error subiendo archivo:", error);
+      setUploadError("Ocurrió un error al subir el archivo. Intentá de nuevo.");
+      setUploadProgress(0);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleGuardarConsulta = async () => {
+    setConsultaValidationError(null); setConsultaError(null); setConsultaSuccess(false);
+    if (!form.motivoConsulta.trim()) { setConsultaValidationError("El motivo de consulta es obligatorio."); return; }
+    setSavingConsulta(true);
+    try {
+      const now = Timestamp.now();
+      await addDoc(collection(db, "consultas"), {
+        pacienteId: patient.id, doctorId: "", citaId: "", fecha: now, fechaCreacion: now,
+        motivoConsulta: form.motivoConsulta.trim(), examenFisico: form.examenFisico.trim(),
+        diagnostico: form.diagnostico.trim() ? [form.diagnostico.trim()] : [],
+        tratamiento: form.tratamiento.trim(), indicaciones: form.indicaciones.trim(),
+        notasClinicas: form.notasClinicas.trim(), resumenIA: "",
+      });
+      setForm(FORM_INICIAL); setConsultaSuccess(true);
+      setTimeout(() => setConsultaSuccess(false), 3000);
+      const q = query(collection(db, "consultas"), where("pacienteId", "==", patient.id), orderBy("fecha", "desc"));
+      const snapshot = await getDocs(q);
+      setConsultas(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Consulta[]);
+    } catch (error) {
+      console.error("Error guardando consulta:", error);
+      setConsultaError("Ocurrió un error al guardar la consulta. Intentá de nuevo.");
+    } finally {
+      setSavingConsulta(false);
+    }
+  };
+
+  const handleAddTag = async () => {
+    const nuevoTag = tagInput.trim();
+    if (!nuevoTag) return;
+    if (tags.includes(nuevoTag)) { setTagInput(""); return; }
+    if (tags.length >= 20) return;
+    setSavingTag(true);
+    try {
+      await updateDoc(doc(db, "pacientes", patient.id), { tags: arrayUnion(nuevoTag) });
+      setTags(prev => [...prev, nuevoTag]); setTagInput("");
+    } catch (error) { console.error("Error agregando tag:", error); }
+    finally { setSavingTag(false); }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    setSavingTag(true);
+    try {
+      await updateDoc(doc(db, "pacientes", patient.id), { tags: arrayRemove(tag) });
+      setTags(prev => prev.filter(t => t !== tag));
+    } catch (error) { console.error("Error eliminando tag:", error); }
+    finally { setSavingTag(false); }
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") { e.preventDefault(); handleAddTag(); }
+  };
+
   const handleExportPdf = async () => {
     if (!patient) return;
     setExportingPdf(true);
@@ -462,83 +612,6 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     } finally {
       setExportingPdf(false);
     }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !patient?.id) return;
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (!allowedTypes.includes(file.type)) { setUploadError("Solo se permiten archivos PDF, JPG o PNG."); return; }
-    setUploading(true); setUploadError(null); setUploadSuccess(false);
-    try {
-      const storageRef = ref(storage, `pacientes/${patient.id}/${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      const nuevoDoc: Documento = { nombre: file.name, url, fechaSubida: Timestamp.now() };
-      const pacienteRef = doc(db, "pacientes", patient.id);
-      await updateDoc(pacienteRef, { documentos: arrayUnion(nuevoDoc) });
-      setDocumentos(prev => [...prev, nuevoDoc]);
-      setUploadSuccess(true);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setTimeout(() => setUploadSuccess(false), 3000);
-    } catch (error) {
-      console.error("Error subiendo archivo:", error);
-      setUploadError("Ocurrió un error al subir el archivo. Intentá de nuevo.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleGuardarConsulta = async () => {
-    setConsultaValidationError(null); setConsultaError(null); setConsultaSuccess(false);
-    if (!form.motivoConsulta.trim()) { setConsultaValidationError("El motivo de consulta es obligatorio."); return; }
-    setSavingConsulta(true);
-    try {
-      const now = Timestamp.now();
-      await addDoc(collection(db, "consultas"), {
-        pacienteId: patient.id, doctorId: "", citaId: "", fecha: now, fechaCreacion: now,
-        motivoConsulta: form.motivoConsulta.trim(), examenFisico: form.examenFisico.trim(),
-        diagnostico: form.diagnostico.trim() ? [form.diagnostico.trim()] : [],
-        tratamiento: form.tratamiento.trim(), indicaciones: form.indicaciones.trim(),
-        notasClinicas: form.notasClinicas.trim(), resumenIA: "",
-      });
-      setForm(FORM_INICIAL); setConsultaSuccess(true);
-      setTimeout(() => setConsultaSuccess(false), 3000);
-      const q = query(collection(db, "consultas"), where("pacienteId", "==", patient.id), orderBy("fecha", "desc"));
-      const snapshot = await getDocs(q);
-      setConsultas(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Consulta[]);
-    } catch (error) {
-      console.error("Error guardando consulta:", error);
-      setConsultaError("Ocurrió un error al guardar la consulta. Intentá de nuevo.");
-    } finally {
-      setSavingConsulta(false);
-    }
-  };
-
-  const handleAddTag = async () => {
-    const nuevoTag = tagInput.trim();
-    if (!nuevoTag) return;
-    if (tags.includes(nuevoTag)) { setTagInput(""); return; }
-    if (tags.length >= 20) return;
-    setSavingTag(true);
-    try {
-      await updateDoc(doc(db, "pacientes", patient.id), { tags: arrayUnion(nuevoTag) });
-      setTags(prev => [...prev, nuevoTag]); setTagInput("");
-    } catch (error) { console.error("Error agregando tag:", error); }
-    finally { setSavingTag(false); }
-  };
-
-  const handleRemoveTag = async (tag: string) => {
-    setSavingTag(true);
-    try {
-      await updateDoc(doc(db, "pacientes", patient.id), { tags: arrayRemove(tag) });
-      setTags(prev => prev.filter(t => t !== tag));
-    } catch (error) { console.error("Error eliminando tag:", error); }
-    finally { setSavingTag(false); }
-  };
-
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") { e.preventDefault(); handleAddTag(); }
   };
 
   if (!patient) return null;
@@ -714,33 +787,106 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               )}
             </TabsContent>
 
-            {/* PESTAÑA 4 — Documentos — sin tocar */}
+            {/* PESTAÑA 4 — Documentos — reemplazado con Cloudinary */}
             <TabsContent value="documentos" className="space-y-4">
+
+              {/* Área de carga */}
               <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center gap-3 bg-gray-50/50">
                 <Upload className="w-8 h-8 text-gray-300" />
                 <p className="text-sm text-gray-500 text-center">Subí un archivo PDF o imagen para asociarlo a este paciente</p>
                 <p className="text-xs text-gray-400">Formatos aceptados: PDF, JPG, PNG</p>
-                <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                <Button variant="outline" className="h-9 mt-1" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Subiendo...</> : <><Upload className="w-4 h-4 mr-2" />Seleccionar archivo</>}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleSeleccionarArchivo}
+                  disabled={uploading}
+                />
+
+                <Button
+                  variant="outline"
+                  className="h-9 mt-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <Paperclip className="w-4 h-4 mr-2" />
+                  Seleccionar archivo
                 </Button>
+
+                {/* Archivo seleccionado */}
+                {archivoSeleccionado && !uploading && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg w-full max-w-sm">
+                    {archivoSeleccionado.type.includes("pdf")
+                      ? <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                      : <Image className="w-4 h-4 text-blue-500 shrink-0" />
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800 truncate">{archivoSeleccionado.name}</p>
+                      <p className="text-xs text-gray-400">{formatTamaño(archivoSeleccionado.size)}</p>
+                    </div>
+                    <button onClick={() => { setArchivoSeleccionado(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Barra de progreso */}
+                {uploading && (
+                  <div className="w-full max-w-sm space-y-1">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">Subiendo... {uploadProgress}%</p>
+                  </div>
+                )}
+
+                {/* Botón subir */}
+                {archivoSeleccionado && !uploading && (
+                  <Button className="h-9 bg-primary hover:bg-primary-dark" onClick={handleSubirDocumento}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Subir documento
+                  </Button>
+                )}
+
                 {uploadSuccess && <p className="text-sm text-emerald-600 font-medium">Archivo subido correctamente.</p>}
                 {uploadError && <p className="text-sm text-rose-600">{uploadError}</p>}
               </div>
-              {documentos.length === 0 ? (
+
+              {/* Lista de documentos */}
+              {loadingDocumentos ? (
                 <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-                  <Paperclip className="w-8 h-8 mb-2 opacity-20" /><p className="text-sm">Este paciente no tiene documentos adjuntos.</p>
+                  <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                  <p className="text-sm">Cargando documentos...</p>
+                </div>
+              ) : documentos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                  <Paperclip className="w-8 h-8 mb-2 opacity-20" />
+                  <p className="text-sm">No hay documentos adjuntos para este paciente.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {documentos.map((d, i) => (
-                    <div key={i} className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
-                      <FileText className="w-5 h-5 text-gray-400 shrink-0" />
+                  {documentos.map((d) => (
+                    <div key={d.id} className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+                      {d.tipo === "pdf"
+                        ? <FileText className="w-5 h-5 text-rose-400 shrink-0" />
+                        : <Image className="w-5 h-5 text-blue-400 shrink-0" />
+                      }
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{d.nombre}</p>
-                        <p className="text-xs text-gray-400">{formatFecha(d.fechaSubida)}</p>
+                        <p className="text-xs text-gray-400">
+                          {formatTamaño(d.tamaño)} · {formatFecha(d.creado_en)}
+                        </p>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-8 text-blue-600 hover:text-blue-700 shrink-0" onClick={() => window.open(d.url, "_blank")}>
+                      <Button
+                        variant="ghost" size="sm"
+                        className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
+                        onClick={() => window.open(d.url, "_blank")}
+                      >
                         <ExternalLink className="w-4 h-4 mr-1" />Abrir
                       </Button>
                     </div>
@@ -769,10 +915,8 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               </div>
             </TabsContent>
 
-            {/* PESTAÑA 6 — Línea de tiempo — nuevo */}
+            {/* PESTAÑA 6 — Línea de tiempo — sin tocar */}
             <TabsContent value="timeline" className="space-y-4">
-
-              {/* Filtros */}
               <div className="flex gap-2 flex-wrap">
                 {filterButtons.map(({ key, label }) => (
                   <button
@@ -788,13 +932,9 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                   </button>
                 ))}
               </div>
-
-              {/* Contador */}
               <p className="text-xs text-gray-400">
                 {filteredEvents.length} {filteredEvents.length === 1 ? "evento registrado" : "eventos registrados"}
               </p>
-
-              {/* Lista de eventos */}
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin mb-2" />
@@ -807,21 +947,14 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                 </div>
               ) : (
                 <div className="relative">
-                  {/* Línea vertical */}
                   <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gray-200" />
-
                   <div className="space-y-4 pl-6">
                     {filteredEvents.map((event) => (
                       <div key={`${event.tipo}-${event.id}`} className="relative flex gap-3">
-                        {/* Punto de color */}
                         <div className="absolute -left-6 top-1.5">
                           <TimelineDot tipo={event.tipo} estado={event.tipo === "cita" ? event.data.estado : undefined} />
                         </div>
-
-                        {/* Tarjeta del evento */}
                         <div className="flex-1 p-4 rounded-lg border border-gray-100 bg-gray-50/50 space-y-2">
-
-                          {/* Header del evento */}
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className="text-xs text-gray-400">{formatFecha(event.fecha)}</span>
                             <div className="flex items-center gap-2">
@@ -839,8 +972,6 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                               )}
                             </div>
                           </div>
-
-                          {/* Contenido según tipo */}
                           {event.tipo === "consulta" && (
                             <div className="space-y-1.5">
                               <p className="text-sm font-medium text-gray-800">{event.data.motivoConsulta || "—"}</p>
@@ -863,17 +994,15 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                               </Button>
                             </div>
                           )}
-
                           {event.tipo === "cita" && (
                             <div className="space-y-1">
                               <p className="text-sm font-medium text-gray-800">{event.data.motivo || "—"}</p>
                             </div>
                           )}
-
                           {event.tipo === "documento" && (
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                {/\.(jpg|jpeg|png|gif|webp)$/i.test(event.data.nombre)
+                                {event.data.tipo === "imagen"
                                   ? <Image className="w-4 h-4 text-violet-400 shrink-0" />
                                   : <FileText className="w-4 h-4 text-violet-400 shrink-0" />
                                 }
