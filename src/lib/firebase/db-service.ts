@@ -97,6 +97,16 @@ export const appointmentService = {
     }
   },
 
+  async delete(id: string) {
+  try {
+    const docRef = doc(this.db, "citas", id);
+    return await deleteDoc(docRef);
+  } catch (e) {
+    console.error("Error deleting appointment:", e);
+    throw e;
+  }
+},
+
   async getToday() {
     try {
       const snapshot = await getDocs(query(
@@ -117,6 +127,36 @@ export const appointmentService = {
     } catch (e) {
       console.error("Error fetching today's appointments:", e);
       return [];
+    }
+  },
+
+  async create(data: any) {
+    try {
+      const docRef = await addDoc(collection(this.db, "citas"), {
+        ...data,
+        medico_id: getMedicoId(),
+        creado_en: serverTimestamp(),
+        actualizado_en: serverTimestamp(),
+      });
+
+      return docRef.id;
+    } catch (e) {
+      console.error("Error creating appointment:", e);
+      throw e;
+    }
+  },
+
+  async update(id: string, data: any) {
+    try {
+      const docRef = doc(this.db, "citas", id);
+
+      return await updateDoc(docRef, {
+        ...data,
+        actualizado_en: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("Error updating appointment:", e);
+      throw e;
     }
   }
 };
