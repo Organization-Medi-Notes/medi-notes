@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { auth } from "@/lib/firebase/config";
+
+const INACTIVITY_LIMIT = 5 * 60 * 1000;
 
 export default function DashboardLayout({
   children,
@@ -25,6 +27,30 @@ export default function DashboardLayout({
     });
 
     return () => unsubscribe();
+  }, [router]);
+
+  useEffect(() => {
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+
+      inactivityTimer = setTimeout(async () => {
+        await signOut(auth);
+        router.replace("/login");
+      }, INACTIVITY_LIMIT);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+
+    events.forEach((event) => window.addEventListener(event, resetTimer));
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
   }, [router]);
 
   if (checkingSession) {
