@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import {
   collection,
   doc,
@@ -17,166 +20,189 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { auth, db } from '@/lib/firebase/config';
-
+import { auth, db } from "@/lib/firebase/config";
 
 export default function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
+
   const MAX_FAILED_ATTEMPTS = 3;
-const LOCK_TIME_MINUTES = 5;
-const getUserProfileByEmail = async (email: string) => {
-  const usersRef = collection(db, "usuarios");
+  const LOCK_TIME_MINUTES = 5;
 
-  const userQuery = query(
-    usersRef,
-    where("email", "==", email),
-    limit(1)
-  );
+  const getUserProfileByEmail = async (email: string) => {
+    const usersRef = collection(db, "usuarios");
+    const userQuery = query(usersRef, where("email", "==", email), limit(1));
+    const userSnapshot = await getDocs(userQuery);
 
-  const userSnapshot = await getDocs(userQuery);
+    if (userSnapshot.empty) return null;
 
-  if (userSnapshot.empty) {
-    return null;
-  }
+    const userDoc = userSnapshot.docs[0];
 
-  const userDoc = userSnapshot.docs[0];
-
-  return {
-    id: userDoc.id,
-    ref: userDoc.ref,
-    data: userDoc.data(),
+    return {
+      id: userDoc.id,
+      ref: userDoc.ref,
+      data: userDoc.data(),
+    };
   };
-};
+
+  const handlePasswordReset = async () => {
+    if (!formData.email) {
+      toast({
+        title: "Correo requerido",
+        description: "Ingrese su correo electrónico para recuperar la contraseña.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      await sendPasswordResetEmail(auth, formData.email);
+
+      toast({
+        title: "Correo enviado",
+        description: "Revise su bandeja de entrada para restablecer la contraseña.",
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo enviar el correo",
+        description: "Verifique que el correo ingresado sea correcto e intente nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!formData.email || !formData.password) {
-    toast({
-      title: "Campos requeridos",
-      description: "Por favor ingrese correo y contraseña.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  setLoading(true);
-  const profile = await getUserProfileByEmail(formData.email);
-
-if (profile) {
-  const blockedUntil = profile.data.bloqueadoHasta;
-
-  if (blockedUntil) {
-    const blockDate = blockedUntil.toDate
-      ? blockedUntil.toDate()
-      : new Date(blockedUntil);
-
-    if (blockDate > new Date()) {
+    if (!formData.email || !formData.password) {
       toast({
-        title: "Cuenta bloqueada",
-        description:
-          "Demasiados intentos fallidos. Intente nuevamente más tarde.",
+        title: "Campos requeridos",
+        description: "Por favor ingrese correo y contraseña.",
         variant: "destructive",
       });
+      return;
+    }
 
+    setLoading(true);
+
+    try {
+      const profile = await getUserProfileByEmail(formData.email);
+
+      if (profile) {
+        const blockedUntil = profile.data.bloqueadoHasta;
+
+        if (blockedUntil) {
+          const blockDate = blockedUntil.toDate
+            ? blockedUntil.toDate()
+            : new Date(blockedUntil);
+
+          if (blockDate > new Date()) {
+            toast({
+              title: "Cuenta bloqueada",
+              description: "Demasiados intentos fallidos. Intente nuevamente más tarde.",
+              variant: "destructive",
+            });
+
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+
+      const firebaseUser = userCredential.user;
+      const userRef = doc(db, "usuarios", firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        toast({
+          title: "Usuario no encontrado",
+          description: "No existe un perfil asociado a esta cuenta.",
+          variant: "destructive",
+        });
+
+        setLoading(false);
+        return;
+      }
+
+      const userData = userSnap.data();
+
+      if (userData.activo === false) {
+        toast({
+          title: "Cuenta desactivada",
+          description: "Contacte al administrador del sistema.",
+          variant: "destructive",
+        });
+
+        setLoading(false);
+        return;
+      }
+
+      await updateDoc(userRef, {
+        ultimoAcceso: new Date(),
+        intentosFallidos: 0,
+        bloqueadoHasta: null,
+      });
+
+      toast({
+        title: "Bienvenido",
+        description: "Inicio de sesión exitoso.",
+      });
+
+      router.push("/");
+    } catch (error) {
+      const profile = await getUserProfileByEmail(formData.email);
+
+      if (profile) {
+        const currentAttempts = profile.data.intentosFallidos ?? 0;
+        const newAttempts = currentAttempts + 1;
+
+        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+          const blockedUntil = new Date();
+          blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
+
+          await updateDoc(profile.ref, {
+            intentosFallidos: newAttempts,
+            bloqueadoHasta: blockedUntil,
+          });
+
+          toast({
+            title: "Cuenta bloqueada",
+            description:
+              "Demasiados intentos fallidos. La cuenta fue bloqueada temporalmente por 5 minutos.",
+            variant: "destructive",
+          });
+
+          return;
+        }
+
+        await updateDoc(profile.ref, {
+          intentosFallidos: newAttempts,
+        });
+      }
+
+      toast({
+        title: "Error",
+        description: "Correo o contraseña incorrectos.",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-      return;
     }
-  }
-}
-
-  try {
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      formData.email,
-      formData.password
-    );
-
-    const firebaseUser = userCredential.user;
-
-    const userRef = doc(db, "usuarios", firebaseUser.uid);
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-      toast({
-        title: "Usuario no encontrado",
-        description: "No existe un perfil asociado a esta cuenta.",
-        variant: "destructive",
-      });
-
-      setLoading(false);
-      return;
-    }
-
-    const userData = userSnap.data();
-
-    if (userData.activo === false) {
-      toast({
-        title: "Cuenta desactivada",
-        description: "Contacte al administrador del sistema.",
-        variant: "destructive",
-      });
-
-      setLoading(false);
-      return;
-    }
-
-    await updateDoc(userRef, {
-  ultimoAcceso: new Date(),
-  intentosFallidos: 0,
-  bloqueadoHasta: null,
-});
-
-    toast({
-      title: "Bienvenido",
-      description: `Inicio de sesión exitoso.`,
-    });
-
-    router.push("/");
-  } catch (error) {
-  const profile = await getUserProfileByEmail(formData.email);
-
-  if (profile) {
-    const currentAttempts = profile.data.intentosFallidos ?? 0;
-    const newAttempts = currentAttempts + 1;
-
-    if (newAttempts >= MAX_FAILED_ATTEMPTS) {
-      const blockedUntil = new Date();
-      blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
-
-      await updateDoc(profile.ref, {
-        intentosFallidos: newAttempts,
-        bloqueadoHasta: blockedUntil,
-      });
-
-      toast({
-        title: "Cuenta bloqueada",
-        description:
-          "Demasiados intentos fallidos. La cuenta fue bloqueada temporalmente por 5 minutos.",
-        variant: "destructive",
-      });
-
-      return;
-    }
-
-    await updateDoc(profile.ref, {
-      intentosFallidos: newAttempts,
-    });
-  }
-
-  toast({
-    title: "Error",
-    description: "Correo o contraseña incorrectos.",
-    variant: "destructive",
-  });
-} finally {
-  setLoading(false);
-}
-};
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#EBF4FF] to-white p-6">
@@ -185,23 +211,34 @@ if (profile) {
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 mx-auto mb-6">
             <Stethoscope className="text-white w-9 h-9" />
           </div>
-          <h1 className="text-4xl font-headline font-extrabold text-[#1A2B3C] tracking-tight">Medi Notes</h1>
-          <p className="text-gray-500 mt-2 font-medium">Gestión Clínica Inteligente</p>
+          <h1 className="text-4xl font-headline font-extrabold text-[#1A2B3C] tracking-tight">
+            Medi Notes
+          </h1>
+          <p className="text-gray-500 mt-2 font-medium">
+            Gestión Clínica Inteligente
+          </p>
         </div>
 
         <div className="card-notion p-8 shadow-2xl shadow-blue-900/5">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Iniciar Sesión</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Iniciar Sesión
+          </h2>
+
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Correo Electrónico</label>
+              <label className="text-sm font-semibold text-gray-700">
+                Correo Electrónico
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input 
-                  type="email" 
-                  placeholder="doctor@medinotes.com" 
+                <Input
+                  type="email"
+                  placeholder="doctor@medinotes.com"
                   className="pl-10 h-12 rounded-lg border-gray-200 focus:ring-primary"
                   value={formData.email}
-                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -209,49 +246,67 @@ if (profile) {
 
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-semibold text-gray-700">Contraseña</label>
-                <button type="button" className="text-xs font-semibold text-primary hover:underline">¿Olvidó su contraseña?</button>
+                <label className="text-sm font-semibold text-gray-700">
+                  Contraseña
+                </label>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={resetLoading}
+                  className="text-xs font-semibold text-primary hover:underline disabled:opacity-60"
+                >
+                  {resetLoading ? "Enviando..." : "¿Olvidó su contraseña?"}
+                </button>
               </div>
+
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="••••••••" 
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
                   className="pl-10 h-12 rounded-lg border-gray-200 focus:ring-primary"
                   value={formData.password}
-                  onChange={e => setFormData({...formData, password: e.target.value})}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                   required
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="w-full h-12 bg-primary hover:bg-primary-dark text-white font-bold rounded-lg transition-all duration-300 transform active:scale-[0.98]"
             >
               {loading ? "Verificando..." : "Ingresar al Panel"}
             </Button>
+
             <Button
-  type="button"
-  variant="outline"
-  onClick={() => router.push("/signup")}
-  className="w-full h-12 rounded-lg font-bold"
->
-  Crear cuenta
-</Button>
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/signup")}
+              className="w-full h-12 rounded-lg font-bold"
+            >
+              Crear cuenta
+            </Button>
           </form>
         </div>
 
         <p className="text-center mt-8 text-gray-400 text-xs">
-          &copy; {new Date().getFullYear()} Medi Notes App. Todos los derechos reservados.
+          &copy; {new Date().getFullYear()} Medi Notes App. Todos los derechos
+          reservados.
         </p>
       </div>
     </div>

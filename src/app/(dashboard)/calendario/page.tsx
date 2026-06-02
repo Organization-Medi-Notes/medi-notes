@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,6 +11,7 @@ export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openNewAppointment, setOpenNewAppointment] = useState(false);
 
   useEffect(() => {
     async function loadApts() {
@@ -48,11 +48,34 @@ export default function CalendarPage() {
           </h1>
           <p className="text-gray-500 mt-1">Organice y gestione sus consultas médicas.</p>
         </div>
-        <Button className="bg-accent hover:bg-accent/90">
+
+        <Button
+          className="bg-accent hover:bg-accent/90"
+          onClick={() => setOpenNewAppointment(true)}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Nueva Cita
         </Button>
       </div>
+
+      {openNewAppointment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl w-[500px] shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Crear Nueva Cita</h2>
+
+            <p className="text-gray-500">
+              Modal funcionando correctamente.
+            </p>
+
+            <Button
+              className="mt-4"
+              onClick={() => setOpenNewAppointment(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">

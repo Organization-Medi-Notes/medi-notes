@@ -1,4 +1,3 @@
-
 import { 
   collection, 
   addDoc, 
@@ -15,21 +14,27 @@ import {
   Timestamp,
   setDoc
 } from "firebase/firestore";
-import { db } from "./config";
+import { db, auth } from "./config";
 import { Paciente, Cita, Expediente, Medico } from "../types";
 
-// ID de prueba para el flujo MVP. En producción se usaría el uid del usuario autenticado.
-const DEMO_MEDICO_ID = "medico_demo_1";
+// Obtiene el UID del usuario autenticado en tiempo real
+function getMedicoId(): string {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("No hay un usuario autenticado.");
+  return uid;
+}
 
 /**
  * Servicio optimizado para la gestión de pacientes.
  */
 export const patientService = {
+  db: db,
+
   async getAll() {
     try {
       const q = query(
-        collection(db, "pacientes"), 
-        where("medico_id", "==", DEMO_MEDICO_ID),
+        collection(this.db, "pacientes"),
+        where("medico_id", "==", getMedicoId()),
         orderBy("creado_en", "desc")
       );
       const snapshot = await getDocs(q);
@@ -48,7 +53,7 @@ export const patientService = {
 
   async getById(id: string) {
     try {
-      const docRef = doc(db, "pacientes", id);
+      const docRef = doc(this.db, "pacientes", id);
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as any : null;
     } catch (e) {
@@ -58,9 +63,9 @@ export const patientService = {
   },
 
   async add(data: Partial<Paciente>) {
-    return await addDoc(collection(db, "pacientes"), {
+    return await addDoc(collection(this.db, "pacientes"), {
       ...data,
-      medico_id: DEMO_MEDICO_ID,
+      medico_id: getMedicoId(),
       activo: true,
       creado_en: serverTimestamp(),
       actualizado_en: serverTimestamp(),
@@ -72,11 +77,13 @@ export const patientService = {
  * Servicio optimizado para la gestión de citas y calendario.
  */
 export const appointmentService = {
+  db: db,
+
   async getAll() {
     try {
       const q = query(
-        collection(db, "citas"), 
-        where("medico_id", "==", DEMO_MEDICO_ID),
+        collection(this.db, "citas"),
+        where("medico_id", "==", getMedicoId()),
         orderBy("fecha", "asc")
       );
       const snapshot = await getDocs(q);
@@ -93,8 +100,8 @@ export const appointmentService = {
   async getToday() {
     try {
       const snapshot = await getDocs(query(
-        collection(db, "citas"), 
-        where("medico_id", "==", DEMO_MEDICO_ID)
+        collection(this.db, "citas"),
+        where("medico_id", "==", getMedicoId())
       ));
       const today = new Date().toDateString();
       
@@ -108,6 +115,7 @@ export const appointmentService = {
         })
         .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
     } catch (e) {
+      console.error("Error fetching today's appointments:", e);
       return [];
     }
   }
@@ -117,11 +125,13 @@ export const appointmentService = {
  * Servicio para expedientes clínicos.
  */
 export const medicalRecordService = {
+  db: db,
+
   async getAll() {
     try {
       const q = query(
-        collection(db, "expedientes"),
-        where("medico_id", "==", DEMO_MEDICO_ID),
+        collection(this.db, "expedientes"),
+        where("medico_id", "==", getMedicoId()),
         orderBy("creado_en", "desc")
       );
       const snapshot = await getDocs(q);
@@ -137,18 +147,21 @@ export const medicalRecordService = {
  * Servicio de configuración del perfil médico.
  */
 export const settingsService = {
+  db: db,
+
   async getProfile() {
     try {
-      const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
+      const docRef = doc(this.db, "configuracion", getMedicoId());
       const docSnap = await getDoc(docRef);
       return docSnap.exists() ? docSnap.data() as Medico : null;
     } catch (e) {
+      console.error("Error fetching profile:", e);
       return null;
     }
   },
 
   async updateProfile(data: Partial<Medico>) {
-    const docRef = doc(db, "configuracion", DEMO_MEDICO_ID);
+    const docRef = doc(this.db, "configuracion", getMedicoId());
     return await setDoc(docRef, { 
       ...data, 
       actualizado_en: serverTimestamp() 
