@@ -11,14 +11,12 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
-  limit,
-  query,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 
@@ -34,13 +32,20 @@ export default function LoginPage() {
   const LOCK_TIME_MINUTES = 5;
 
   const getUserProfileByEmail = async (email: string) => {
+    const normalizedEmail = email.trim().toLowerCase();
     const usersRef = collection(db, "usuarios");
-    const userQuery = query(usersRef, where("email", "==", email), limit(1));
-    const userSnapshot = await getDocs(userQuery);
+    const userSnapshot = await getDocs(usersRef);
 
-    if (userSnapshot.empty) return null;
+    const userDoc = userSnapshot.docs.find((docSnap) => {
+      const userEmail = docSnap.data().email;
 
-    const userDoc = userSnapshot.docs[0];
+      return (
+        typeof userEmail === "string" &&
+        userEmail.trim().toLowerCase() === normalizedEmail
+      );
+    });
+
+    if (!userDoc) return null;
 
     return {
       id: userDoc.id,
@@ -49,8 +54,29 @@ export default function LoginPage() {
     };
   };
 
+  const registrarEventoAuditoria = async (
+  email: string,
+  evento: string,
+  estado: string,
+  detalle: string
+) => {
+  try {
+    await addDoc(collection(db, "auditorias"), {
+      email,
+      evento,
+      estado,
+      detalle,
+      fecha: new Date(),
+    });
+  } catch (error) {
+    console.error("Error registrando auditoría:", error);
+  }
+};
+
   const handlePasswordReset = async () => {
-    if (!formData.email) {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
       toast({
         title: "Correo requerido",
         description: "Ingrese su correo electrónico para recuperar la contraseña.",
@@ -62,7 +88,7 @@ export default function LoginPage() {
     setResetLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, formData.email);
+      await sendPasswordResetEmail(auth, normalizedEmail);
 
       toast({
         title: "Correo enviado",
@@ -71,7 +97,8 @@ export default function LoginPage() {
     } catch (error) {
       toast({
         title: "No se pudo enviar el correo",
-        description: "Verifique que el correo ingresado sea correcto e intente nuevamente.",
+        description:
+          "Verifique que el correo ingresado sea correcto e intente nuevamente.",
         variant: "destructive",
       });
     } finally {
@@ -82,7 +109,9 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.email || !formData.password) {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+
+    if (!normalizedEmail || !formData.password) {
       toast({
         title: "Campos requeridos",
         description: "Por favor ingrese correo y contraseña.",
@@ -94,7 +123,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const profile = await getUserProfileByEmail(formData.email);
+      const profile = await getUserProfileByEmail(normalizedEmail);
 
       if (profile) {
         const blockedUntil = profile.data.bloqueadoHasta;
@@ -107,7 +136,8 @@ export default function LoginPage() {
           if (blockDate > new Date()) {
             toast({
               title: "Cuenta bloqueada",
-              description: "Demasiados intentos fallidos. Intente nuevamente más tarde.",
+              description:
+                "Demasiados intentos fallidos. Intente nuevamente más tarde.",
               variant: "destructive",
             });
 
@@ -119,7 +149,7 @@ export default function LoginPage() {
 
       const userCredential = await signInWithEmailAndPassword(
         auth,
-        formData.email,
+        normalizedEmail,
         formData.password
       );
 
@@ -157,6 +187,13 @@ export default function LoginPage() {
         bloqueadoHasta: null,
       });
 
+      await registrarEventoAuditoria(
+  normalizedEmail,
+  "LOGIN",
+  "EXITOSO",
+  "Inicio de sesión exitoso"
+);
+
       toast({
         title: "Bienvenido",
         description: "Inicio de sesión exitoso.",
@@ -164,7 +201,7 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (error) {
-      const profile = await getUserProfileByEmail(formData.email);
+      const profile = await getUserProfileByEmail(normalizedEmail);
 
       if (profile) {
         const currentAttempts = profile.data.intentosFallidos ?? 0;
@@ -178,6 +215,13 @@ export default function LoginPage() {
             intentosFallidos: newAttempts,
             bloqueadoHasta: blockedUntil,
           });
+
+          await registrarEventoAuditoria(
+  normalizedEmail,
+  "LOGIN",
+  "BLOQUEADO",
+  "Cuenta bloqueada temporalmente por múltiples intentos fallidos"
+);
 
           toast({
             title: "Cuenta bloqueada",
@@ -193,6 +237,13 @@ export default function LoginPage() {
           intentosFallidos: newAttempts,
         });
       }
+
+      await registrarEventoAuditoria(
+  normalizedEmail,
+  "LOGIN",
+  "FALLIDO",
+  "Intento de inicio de sesión con credenciales incorrectas"
+);
 
       toast({
         title: "Error",
