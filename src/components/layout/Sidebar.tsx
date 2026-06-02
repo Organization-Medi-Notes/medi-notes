@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 import { 
   LayoutDashboard, 
   Users, 
@@ -30,6 +33,17 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+
+  const router = useRouter();
+
+const handleLogout = async () => {
+  try {
+    await signOut(auth);
+    router.push("/login");
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+  }
+};
 
   return (
     <div className="fixed inset-y-0 left-0 w-64 bg-sidebar-background flex flex-col h-full z-50">
@@ -79,7 +93,10 @@ export function Sidebar() {
             <p className="text-sm font-semibold text-white truncate">Dra. Natalia Solano</p>
             <p className="text-[10px] text-sidebar-foreground truncate uppercase tracking-widest">Pediatra</p>
           </div>
-          <button className="text-sidebar-foreground hover:text-white transition-colors">
+          <button
+  onClick={handleLogout}
+  className="text-sidebar-foreground hover:text-white transition-colors"
+>
             <LogOut className="w-4 h-4" />
           </button>
         </div>
