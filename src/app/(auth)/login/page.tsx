@@ -10,7 +10,16 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
 
 export default function LoginPage() {
@@ -20,6 +29,25 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
+
+  const MAX_FAILED_ATTEMPTS = 3;
+  const LOCK_TIME_MINUTES = 5;
+
+  const getUserProfileByEmail = async (email: string) => {
+    const usersRef = collection(db, "usuarios");
+    const userQuery = query(usersRef, where("email", "==", email), limit(1));
+    const userSnapshot = await getDocs(userQuery);
+
+    if (userSnapshot.empty) return null;
+
+    const userDoc = userSnapshot.docs[0];
+
+    return {
+      id: userDoc.id,
+      ref: userDoc.ref,
+      data: userDoc.data(),
+    };
+  };
 
   const handlePasswordReset = async () => {
     if (!formData.email) {
@@ -38,14 +66,12 @@ export default function LoginPage() {
 
       toast({
         title: "Correo enviado",
-        description:
-          "Revise su bandeja de entrada para restablecer la contraseña.",
+        description: "Revise su bandeja de entrada para restablecer la contraseña.",
       });
     } catch (error) {
       toast({
         title: "No se pudo enviar el correo",
-        description:
-          "Verifique que el correo ingresado sea correcto e intente nuevamente.",
+        description: "Verifique que el correo ingresado sea correcto e intente nuevamente.",
         variant: "destructive",
       });
     } finally {
@@ -68,6 +94,29 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const profile = await getUserProfileByEmail(formData.email);
+
+      if (profile) {
+        const blockedUntil = profile.data.bloqueadoHasta;
+
+        if (blockedUntil) {
+          const blockDate = blockedUntil.toDate
+            ? blockedUntil.toDate()
+            : new Date(blockedUntil);
+
+          if (blockDate > new Date()) {
+            toast({
+              title: "Cuenta bloqueada",
+              description: "Demasiados intentos fallidos. Intente nuevamente más tarde.",
+              variant: "destructive",
+            });
+
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         formData.email,
@@ -75,7 +124,6 @@ export default function LoginPage() {
       );
 
       const firebaseUser = userCredential.user;
-
       const userRef = doc(db, "usuarios", firebaseUser.uid);
       const userSnap = await getDoc(userRef);
 
@@ -105,6 +153,8 @@ export default function LoginPage() {
 
       await updateDoc(userRef, {
         ultimoAcceso: new Date(),
+        intentosFallidos: 0,
+        bloqueadoHasta: null,
       });
 
       toast({
@@ -114,6 +164,36 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (error) {
+      const profile = await getUserProfileByEmail(formData.email);
+
+      if (profile) {
+        const currentAttempts = profile.data.intentosFallidos ?? 0;
+        const newAttempts = currentAttempts + 1;
+
+        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+          const blockedUntil = new Date();
+          blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
+
+          await updateDoc(profile.ref, {
+            intentosFallidos: newAttempts,
+            bloqueadoHasta: blockedUntil,
+          });
+
+          toast({
+            title: "Cuenta bloqueada",
+            description:
+              "Demasiados intentos fallidos. La cuenta fue bloqueada temporalmente por 5 minutos.",
+            variant: "destructive",
+          });
+
+          return;
+        }
+
+        await updateDoc(profile.ref, {
+          intentosFallidos: newAttempts,
+        });
+      }
+
       toast({
         title: "Error",
         description: "Correo o contraseña incorrectos.",
@@ -175,9 +255,7 @@ export default function LoginPage() {
                   disabled={resetLoading}
                   className="text-xs font-semibold text-primary hover:underline disabled:opacity-60"
                 >
-                  {resetLoading
-                    ? "Enviando..."
-                    : "¿Olvidó su contraseña?"}
+                  {resetLoading ? "Enviando..." : "¿Olvidó su contraseña?"}
                 </button>
               </div>
 
