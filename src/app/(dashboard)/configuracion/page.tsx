@@ -10,6 +10,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,14 @@ import {
   reauthenticateWithCredential,
   updatePassword,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -37,6 +45,10 @@ export default function SettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
 const [showNewPassword, setShowNewPassword] = useState(false);
 const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+const [users, setUsers] = useState<any[]>([]);
+const [loadingUsers, setLoadingUsers] = useState(false);
+const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
@@ -60,7 +72,81 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     }
 
     loadProfile();
+    async function loadCurrentUserRole() {
+  const user = auth.currentUser;
+
+  if (!user) return;
+
+  const userRef = doc(db, "usuarios", user.uid);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    setCurrentUserRole(userSnap.data().rol ?? null);
+  }
+}
+
+loadCurrentUserRole();
   }, []);
+
+  useEffect(() => {
+  loadUsers();
+}, []);
+
+  const loadUsers = async () => {
+  setLoadingUsers(true);
+
+  try {
+    const snapshot = await getDocs(collection(db, "usuarios"));
+
+    const usersData = snapshot.docs.map((userDoc) => ({
+      id: userDoc.id,
+      ...userDoc.data(),
+    }));
+
+    setUsers(usersData);
+  } catch (error) {
+    console.error("Error cargando usuarios:", error);
+
+    toast({
+      title: "Error",
+      description: "No se pudieron cargar los usuarios.",
+      variant: "destructive",
+    });
+  } finally {
+    setLoadingUsers(false);
+  }
+};
+
+const handleRoleChange = async (userId: string, newRole: string) => {
+  setUpdatingUserId(userId);
+
+  try {
+    await updateDoc(doc(db, "usuarios", userId), {
+      rol: newRole,
+    });
+
+    setUsers((prevUsers) =>
+      prevUsers.map((user) =>
+        user.id === userId ? { ...user, rol: newRole } : user
+      )
+    );
+
+    toast({
+      title: "Rol actualizado",
+      description: "El rol del usuario fue actualizado correctamente.",
+    });
+  } catch (error) {
+    console.error("Error actualizando rol:", error);
+
+    toast({
+      title: "Error",
+      description: "No se pudo actualizar el rol del usuario.",
+      variant: "destructive",
+    });
+  } finally {
+    setUpdatingUserId(null);
+  }
+};
 
   const handleSave = async () => {
     setSaving(true);
@@ -203,6 +289,14 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
             >
               <Shield className="w-4 h-4" /> Seguridad
             </TabsTrigger>
+            {currentUserRole === "administrador" && (
+  <TabsTrigger
+    value="users"
+    className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+  >
+    <Users className="w-4 h-4" /> Usuarios y roles
+  </TabsTrigger>
+)}
           </TabsList>
 
           <div className="flex-1 p-8 overflow-y-auto flex flex-col justify-start">
@@ -383,6 +477,67 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     </Button>
   </div>
 </TabsContent>
+{currentUserRole === "administrador" && (
+  <TabsContent value="users" className="space-y-6 mt-0">
+  <div className="space-y-2">
+    <h2 className="text-xl font-bold">Administración de usuarios y roles</h2>
+    <p className="text-sm text-gray-500">
+      Gestione el rol asignado a cada usuario registrado en el sistema.
+    </p>
+  </div>
+
+  {loadingUsers ? (
+    <div className="flex items-center gap-2 text-gray-500">
+      <Loader2 className="w-4 h-4 animate-spin" />
+      <span>Cargando usuarios...</span>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {users.map((user) => (
+        <div
+          key={user.id}
+          className="border rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+        >
+          <div>
+            <p className="font-semibold text-gray-900">
+              {user.nombre} {user.apellidos}
+            </p>
+            <p className="text-sm text-gray-500">{user.email}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              UID: {user.uid ?? user.id}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Label className="text-sm">Rol</Label>
+
+            <select
+              value={user.rol ?? "doctor"}
+              onChange={(e) => handleRoleChange(user.id, e.target.value)}
+              disabled={updatingUserId === user.id}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="doctor">Doctor</option>
+              <option value="asistente">Asistente</option>
+              <option value="administrador">Administrador</option>
+            </select>
+
+            {updatingUserId === user.id && (
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            )}
+          </div>
+        </div>
+      ))}
+
+      {users.length === 0 && (
+        <p className="text-sm text-gray-500">
+          No hay usuarios registrados para mostrar.
+        </p>
+      )}
+    </div>
+  )}
+</TabsContent>
+)}
           </div>
         </Tabs>
       </div>
