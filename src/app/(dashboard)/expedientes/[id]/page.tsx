@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Loader2, User, ClipboardList,
   Calendar, CheckCircle, CalendarDays, Clock,
-  AlertTriangle, Pill, BookOpen, ShieldAlert, BarChart2
+  AlertTriangle, Pill, BookOpen, ShieldAlert, BarChart2,
+  Paperclip, FileText, Image, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,15 @@ interface DiagnosticoFrecuente {
   cantidad: number;
 }
 
+interface Documento {
+  id: string;
+  nombre: string;
+  url: string;
+  tipo: "pdf" | "imagen";
+  tamaño: number;
+  creado_en: any;
+}
+
 function calcularEdad(fechaNacimiento: any): number {
   if (!fechaNacimiento) return 0;
   try {
@@ -57,6 +67,13 @@ function formatFecha(fecha: any): string {
   } catch {
     return "—";
   }
+}
+
+function formatTamaño(bytes: number): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function capitalize(str: string): string {
@@ -183,6 +200,7 @@ export default function ExpedienteDetallePage() {
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [diagnosticosFrecuentes, setDiagnosticosFrecuentes] = useState<DiagnosticoFrecuente[]>([]);
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -200,10 +218,11 @@ export default function ExpedienteDetallePage() {
         const p = { id: pacienteSnap.id, ...pacienteSnap.data() } as Paciente;
         setPaciente(p);
 
-        const [consultasSnap, citasSnap, primeraConsultaSnap] = await Promise.all([
+        const [consultasSnap, citasSnap, primeraConsultaSnap, documentosSnap] = await Promise.all([
           getDocs(query(collection(db, "consultas"), where("pacienteId", "==", id), orderBy("fecha", "desc"))),
           getDocs(query(collection(db, "citas"), where("pacienteId", "==", id))),
           getDocs(query(collection(db, "consultas"), where("pacienteId", "==", id), orderBy("fecha", "asc"))),
+          getDocs(query(collection(db, "documentos"), where("pacienteId", "==", id), orderBy("creado_en", "desc"))),
         ]);
 
         const totalConsultas = consultasSnap.size;
@@ -235,6 +254,10 @@ export default function ExpedienteDetallePage() {
           .slice(0, 5);
 
         setDiagnosticosFrecuentes(ordenados);
+
+        // Documentos
+        const docs = documentosSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Documento[];
+        setDocumentos(docs);
 
       } catch (error) {
         console.error("Error cargando expediente:", error);
@@ -326,7 +349,7 @@ export default function ExpedienteDetallePage() {
         </div>
       </div>
 
-      {/* Diagnósticos más frecuentes — corregido sin barras */}
+      {/* Diagnósticos más frecuentes — sin tocar */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <BarChart2 className="w-4 h-4 text-gray-500" />
@@ -353,6 +376,49 @@ export default function ExpedienteDetallePage() {
                 </span>
               </div>
             ))
+          )}
+        </div>
+      </div>
+
+      {/* Documentos — nuevo */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Paperclip className="w-4 h-4 text-gray-500" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Documentos
+          </p>
+        </div>
+        <div className="card-notion">
+          {documentos.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">
+              Este paciente no tiene documentos adjuntos.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {documentos.map((d) => (
+                <div key={d.id} className="flex items-center gap-4 py-2 border-b border-gray-50 last:border-0">
+                  {d.tipo === "pdf"
+                    ? <FileText className="w-5 h-5 text-rose-400 shrink-0" />
+                    : <Image className="w-5 h-5 text-blue-400 shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{d.nombre}</p>
+                    <p className="text-xs text-gray-400">
+                      {formatTamaño(d.tamaño)} · {formatFecha(d.creado_en)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
+                    onClick={() => window.open(d.url, "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    Abrir
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
