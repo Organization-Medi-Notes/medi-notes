@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Loader2, User, ClipboardList,
@@ -49,6 +49,30 @@ interface Documento {
   creado_en: any;
 }
 
+interface Consulta {
+  id: string;
+  fecha: any;
+  motivoConsulta: string;
+  diagnostico: string[];
+  notasClinicas: string;
+}
+
+interface Cita {
+  id: string;
+  fecha: any;
+  motivo: string;
+  estado: string;
+}
+
+type TimelineFilter = "todo" | "consulta" | "cita" | "documento";
+
+interface TimelineEvent {
+  id: string;
+  tipo: "consulta" | "cita" | "documento";
+  fecha: any;
+  data: any;
+}
+
 function calcularEdad(fechaNacimiento: any): number {
   if (!fechaNacimiento) return 0;
   try {
@@ -79,6 +103,16 @@ function formatTamaño(bytes: number): string {
 function capitalize(str: string): string {
   if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function getFechaMs(fecha: any): number {
+  if (!fecha) return 0;
+  try {
+    const date = fecha?.toDate ? fecha.toDate() : new Date(fecha);
+    return date.getTime();
+  } catch {
+    return 0;
+  }
 }
 
 function StatCard({ icon, value, label, color }: {
@@ -193,6 +227,37 @@ function AlertasMedicas({ paciente }: { paciente: Paciente }) {
   );
 }
 
+function TimelineDot({ tipo, estado }: { tipo: string; estado?: string }) {
+  let color = "bg-blue-400";
+  if (tipo === "documento") color = "bg-violet-400";
+  else if (tipo === "cita") {
+    if (estado === "completada") color = "bg-emerald-400";
+    else if (estado === "cancelada" || estado === "no-asistio") color = "bg-rose-400";
+    else color = "bg-yellow-400";
+  }
+  return <div className={`w-3 h-3 rounded-full shrink-0 ${color}`} />;
+}
+
+function EstadoBadge({ estado }: { estado: string }) {
+  const styles: Record<string, string> = {
+    completada: "bg-emerald-50 text-emerald-700",
+    cancelada: "bg-rose-50 text-rose-700",
+    "no-asistio": "bg-yellow-50 text-yellow-700",
+    programada: "bg-blue-50 text-blue-700",
+  };
+  const labels: Record<string, string> = {
+    completada: "Completada",
+    cancelada: "Cancelada",
+    "no-asistio": "No asistió",
+    programada: "Programada",
+  };
+  return (
+    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${styles[estado] ?? "bg-gray-100 text-gray-500"}`}>
+      {labels[estado] ?? estado}
+    </span>
+  );
+}
+
 export default function ExpedienteDetallePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -201,6 +266,9 @@ export default function ExpedienteDetallePage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [diagnosticosFrecuentes, setDiagnosticosFrecuentes] = useState<DiagnosticoFrecuente[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("todo");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -236,7 +304,7 @@ export default function ExpedienteDetallePage() {
 
         setStats({ totalConsultas, totalCitas, porcentajeAsistencia, primeraConsulta, ultimaConsulta });
 
-        // Procesar diagnósticos frecuentes
+        // Diagnósticos frecuentes
         const todosLosDiagnosticos: string[] = consultasSnap.docs
           .map(d => d.data().diagnostico ?? [])
           .flat()
@@ -259,6 +327,14 @@ export default function ExpedienteDetallePage() {
         const docs = documentosSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Documento[];
         setDocumentos(docs);
 
+        // Consultas para timeline
+        const consultasData = consultasSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Consulta[];
+        setConsultas(consultasData);
+
+        // Citas para timeline
+        const citasData = citasSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Cita[];
+        setCitas(citasData);
+
       } catch (error) {
         console.error("Error cargando expediente:", error);
       } finally {
@@ -268,6 +344,21 @@ export default function ExpedienteDetallePage() {
 
     loadData();
   }, [id]);
+
+  // Timeline combinado y ordenado
+  const allEvents = useMemo<TimelineEvent[]>(() => {
+    const events: TimelineEvent[] = [
+      ...consultas.map(c => ({ id: c.id, tipo: "consulta" as const, fecha: c.fecha, data: c })),
+      ...citas.map(c => ({ id: c.id, tipo: "cita" as const, fecha: c.fecha, data: c })),
+      ...documentos.map(d => ({ id: d.id, tipo: "documento" as const, fecha: d.creado_en, data: d })),
+    ];
+    return events.sort((a, b) => getFechaMs(b.fecha) - getFechaMs(a.fecha));
+  }, [consultas, citas, documentos]);
+
+  const filteredEvents = useMemo(() => {
+    if (timelineFilter === "todo") return allEvents;
+    return allEvents.filter(e => e.tipo === timelineFilter);
+  }, [allEvents, timelineFilter]);
 
   if (loading) {
     return (
@@ -292,6 +383,13 @@ export default function ExpedienteDetallePage() {
   }
 
   const edad = calcularEdad(paciente.fechaNacimiento);
+
+  const filterButtons: { key: TimelineFilter; label: string }[] = [
+    { key: "todo", label: "Todo" },
+    { key: "consulta", label: "Consultas" },
+    { key: "cita", label: "Citas" },
+    { key: "documento", label: "Documentos" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -380,7 +478,7 @@ export default function ExpedienteDetallePage() {
         </div>
       </div>
 
-      {/* Documentos — nuevo */}
+      {/* Documentos — sin tocar */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Paperclip className="w-4 h-4 text-gray-500" />
@@ -421,6 +519,128 @@ export default function ExpedienteDetallePage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Línea de tiempo — nuevo */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar className="w-4 h-4 text-gray-500" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Línea de tiempo
+          </p>
+        </div>
+
+        {/* Filtros */}
+        <div className="flex gap-2 flex-wrap mb-3">
+          {filterButtons.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTimelineFilter(key)}
+              className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                timelineFilter === key
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Contador */}
+        <p className="text-xs text-gray-400 mb-4">
+          {filteredEvents.length} {filteredEvents.length === 1 ? "evento registrado" : "eventos registrados"}
+        </p>
+
+        {/* Lista de eventos */}
+        {filteredEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <Calendar className="w-10 h-10 mb-2 opacity-20" />
+            <p className="text-sm">No hay eventos registrados para este paciente.</p>
+          </div>
+        ) : (
+          <div className="relative">
+            {/* Línea vertical */}
+            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gray-200" />
+
+            <div className="space-y-4 pl-6">
+              {filteredEvents.map((event) => (
+                <div key={`${event.tipo}-${event.id}`} className="relative flex gap-3">
+                  {/* Punto de color */}
+                  <div className="absolute -left-6 top-1.5">
+                    <TimelineDot tipo={event.tipo} estado={event.tipo === "cita" ? event.data.estado : undefined} />
+                  </div>
+
+                  {/* Tarjeta */}
+                  <div className="flex-1 p-4 rounded-lg border border-gray-100 bg-gray-50/50 space-y-2">
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs text-gray-400">{formatFecha(event.fecha)}</span>
+                      <div className="flex items-center gap-2">
+                        {event.tipo === "consulta" && (
+                          <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-blue-50 text-blue-700">Consulta</span>
+                        )}
+                        {event.tipo === "cita" && (
+                          <>
+                            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-gray-100 text-gray-600">Cita</span>
+                            <EstadoBadge estado={event.data.estado} />
+                          </>
+                        )}
+                        {event.tipo === "documento" && (
+                          <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-violet-50 text-violet-700">Documento</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Contenido según tipo */}
+                    {event.tipo === "consulta" && (
+                      <div className="space-y-1.5">
+                        <p className="text-sm font-medium text-gray-800">{event.data.motivoConsulta || "—"}</p>
+                        {event.data.diagnostico?.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {event.data.diagnostico.map((d: string, i: number) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">{d}</span>
+                            ))}
+                          </div>
+                        )}
+                        {event.data.notasClinicas && (
+                          <p className="text-xs text-gray-500 line-clamp-2">{event.data.notasClinicas}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {event.tipo === "cita" && (
+                      <p className="text-sm font-medium text-gray-800">{event.data.motivo || "—"}</p>
+                    )}
+
+                    {event.tipo === "documento" && (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {event.data.tipo === "imagen"
+                            ? <Image className="w-4 h-4 text-violet-400 shrink-0" />
+                            : <FileText className="w-4 h-4 text-violet-400 shrink-0" />
+                          }
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{event.data.nombre}</p>
+                            <p className="text-xs text-gray-400">{formatTamaño(event.data.tamaño)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
+                          onClick={() => window.open(event.data.url, "_blank")}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />Abrir
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
