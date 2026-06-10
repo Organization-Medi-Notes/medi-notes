@@ -33,11 +33,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const DOCTOR_ID = "Aqui va el uid del doctor que se encuentra en la coleccion usuarios";
+const DOCTOR_ID = "9qYah3CPYOfotk8zhiMqGYgnm112";
 
 // ── Cambiá estos números según lo que necesitás ──
-const CANTIDAD_PACIENTES = 10;  // cuántos pacientes querés
-const CONSULTAS_POR_PACIENTE = 9;  // cuántas consultas por paciente
+const CANTIDAD_PACIENTES = 20;  // cuántos pacientes querés
+const CONSULTAS_POR_PACIENTE = 5;  // cuántas consultas por paciente
 
 // ── Datos aleatorios ── 
 // ── Datos aleatorios ──
