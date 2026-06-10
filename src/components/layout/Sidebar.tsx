@@ -45,6 +45,12 @@ const menuItems = [
     roles: ["doctor", "administrador", "asistente"],
   },
   {
+    icon: FileText, // Usaremos el ícono de FileText por ahora
+    label: "Formularios",
+    href: "/formularios",
+    roles: ["doctor", "administrador", "asistente"], // Todos los roles
+  },
+  {
     icon: FileText,
     label: "Expedientes",
     href: "/expedientes",

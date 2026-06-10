@@ -15,6 +15,7 @@ const rolePermissions: Record<string, string[]> = {
     "/pacientes",
     "/calendario",
     "/citas",
+    "/formularios", // Añadido
     "/expedientes",
     "/reportes",
     "/asistente",
@@ -25,12 +26,13 @@ const rolePermissions: Record<string, string[]> = {
     "/pacientes",
     "/calendario",
     "/citas",
+    "/formularios", // Añadido
     "/expedientes",
     "/reportes",
     "/asistente",
     "/configuracion",
   ],
-  asistente: ["/inicio", "/pacientes", "/calendario", "/citas"],
+  asistente: ["/inicio", "/pacientes", "/calendario", "/citas", "/formularios"], // Añadido
 };
 
 export default function DashboardLayout({
