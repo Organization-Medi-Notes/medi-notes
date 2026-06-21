@@ -9,10 +9,16 @@ import {
   Paperclip, FileText, Image, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  collection, getDocs, query, where, orderBy, getDoc, doc
+  collection, getDocs, query, where, orderBy, getDoc, doc, onSnapshot
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import { formularioService } from "@/lib/firebase/formularioService";
+import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
 
 interface Paciente {
   id: string;
@@ -258,6 +264,119 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
+function FormularioHistoricoModal({
+  open,
+  onOpenChange,
+  formulario,
+  response,
+  patientName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formulario: FormularioClinico | null;
+  response: FormularioClinicoRespuesta | null;
+  patientName: string;
+}) {
+  if (!response) return null;
+
+  const statusClass =
+    response.estado === "completed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : "bg-amber-50 text-amber-700 border-amber-100";
+
+  const sortedCampos = formulario?.campos?.slice().sort((a, b) => a.orden - b.orden) ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <div>
+              <DialogTitle>{response.formularioNombre}</DialogTitle>
+              <DialogDescription>
+                Historial clínico del paciente en modo solo lectura.
+              </DialogDescription>
+            </div>
+            <span className={`px-2.5 py-0.5 text-[10px] rounded-full font-medium border ${statusClass}`}>
+              {response.estado === "completed" ? "Completado" : "Borrador"}
+            </span>
+          </div>
+        </DialogHeader>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-gray-500">Paciente</p>
+              <p className="font-medium text-gray-900">{patientName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Fecha</p>
+              <p className="font-medium text-gray-900">{formatFecha(response.modificado_en ?? response.creado_en)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Doctor</p>
+              <p className="font-medium text-gray-900">{response.doctorId || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Versión</p>
+              <p className="font-medium text-gray-900">v{response.formularioVersion ?? "—"}</p>
+            </div>
+          </div>
+        </div>
+
+        {formulario ? (
+          <div className="space-y-4 mt-2">
+            {sortedCampos.map((campo) => {
+              const value = response.respuestas?.[campo.id];
+
+              return (
+                <div key={campo.id} className="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
+                  <p className="text-sm font-medium text-gray-700">
+                    {campo.etiqueta}
+                    {campo.requerido && <span className="text-rose-500 ml-1">*</span>}
+                  </p>
+
+                  {campo.tipo === "textarea" ? (
+                    <Textarea value={String(value ?? "")} readOnly className="min-h-[100px] border-gray-200 bg-gray-50" />
+                  ) : campo.tipo === "checkbox" ? (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <Checkbox checked={Boolean(value)} disabled />
+                      <span>{campo.placeholder || "Seleccionado"}</span>
+                    </label>
+                  ) : campo.tipo === "multiselect" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {(Array.isArray(value) ? value : []).map((item: string) => (
+                        <span key={item} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full">
+                          {item}
+                        </span>
+                      ))}
+                      {(!Array.isArray(value) || value.length === 0) && (
+                        <span className="text-sm text-gray-500">No hay respuestas.</span>
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      type={campo.tipo === "number" ? "number" : campo.tipo === "date" ? "date" : "text"}
+                      value={String(value ?? "")}
+                      readOnly
+                      className="h-11 border-gray-200 bg-gray-50"
+                      placeholder="Sin respuesta"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 mt-2">
+            No se encontró la estructura completa del formulario. Se muestran datos de contexto del registro histórico.
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ExpedienteDetallePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -268,9 +387,15 @@ export default function ExpedienteDetallePage() {
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [citas, setCitas] = useState<Cita[]>([]);
+  const [patientResponses, setPatientResponses] = useState<FormularioClinicoRespuesta[]>([]);
+  const [formsById, setFormsById] = useState<Record<string, FormularioClinico>>({});
+  const [openViewResponseModal, setOpenViewResponseModal] = useState(false);
+  const [viewingResponse, setViewingResponse] = useState<FormularioClinicoRespuesta | null>(null);
+  const [loadingFormHistory, setLoadingFormHistory] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("todo");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -327,6 +452,8 @@ export default function ExpedienteDetallePage() {
         const docs = documentosSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Documento[];
         setDocumentos(docs);
 
+        // Formularios del paciente se sincronizan en tiempo real en un listener dedicado.
+
         // Consultas para timeline
         const consultasData = consultasSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Consulta[];
         setConsultas(consultasData);
@@ -343,6 +470,139 @@ export default function ExpedienteDetallePage() {
     }
 
     loadData();
+  }, [id, refreshTick]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshTick((prev) => prev + 1);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let active = true;
+    let currentPrimaryResponses: FormularioClinicoRespuesta[] = [];
+    let currentAltResponses: FormularioClinicoRespuesta[] = [];
+    let currentLegacyResponses: FormularioClinicoRespuesta[] = [];
+
+    setLoadingFormHistory(true);
+
+    const applyMergedResponses = async () => {
+      const merged = [...currentPrimaryResponses, ...currentAltResponses, ...currentLegacyResponses];
+      const uniqueMap = new Map<string, FormularioClinicoRespuesta>();
+
+      merged.forEach((response) => {
+        const key = response.id ?? `${response.formularioId}-${getFechaMs(response.modificado_en ?? response.creado_en)}`;
+        if (!uniqueMap.has(key)) uniqueMap.set(key, response);
+      });
+
+      const sortedResponses = Array.from(uniqueMap.values()).sort(
+        (a, b) => getFechaMs(b.modificado_en ?? b.creado_en) - getFechaMs(a.modificado_en ?? a.creado_en)
+      );
+
+      if (!active) return;
+      setPatientResponses(sortedResponses);
+
+      try {
+        const uniqueFormIds = Array.from(new Set(sortedResponses.map((r) => r.formularioId).filter(Boolean)));
+        const formDocs = await Promise.all(uniqueFormIds.map((formId) => formularioService.getById(formId)));
+        const formMap: Record<string, FormularioClinico> = {};
+
+        formDocs.forEach((formulario) => {
+          if (formulario?.id) {
+            formMap[formulario.id] = formulario;
+          }
+        });
+
+        if (!active) return;
+        setFormsById(formMap);
+      } catch (error) {
+        console.error("Error cargando estructura de formularios para expediente:", error);
+      } finally {
+        if (active) setLoadingFormHistory(false);
+      }
+    };
+
+    const documentosQuery = query(
+      collection(db, "documentos"),
+      where("pacienteId", "==", id),
+      orderBy("creado_en", "desc")
+    );
+
+    const responsesQuery = query(
+      collection(db, "formularios_paciente"),
+      where("pacienteId", "==", id)
+    );
+
+    const altResponsesQuery = query(
+      collection(db, "formularios_paciente"),
+      where("patientId", "==", id)
+    );
+
+    const legacyResponsesQuery = query(
+      collection(db, "formularios_paciente"),
+      where("paciente_id", "==", id)
+    );
+
+    const unsubDocumentos = onSnapshot(
+      documentosQuery,
+      (snapshot) => {
+        if (!active) return;
+        const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Documento[];
+        setDocumentos(docs);
+      },
+      (error) => {
+        console.error("Error escuchando documentos del expediente:", error);
+      }
+    );
+
+    const unsubResponses = onSnapshot(
+      responsesQuery,
+      (snapshot) => {
+        currentPrimaryResponses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as FormularioClinicoRespuesta[];
+        void applyMergedResponses();
+      },
+      (error) => {
+        console.error("Error escuchando formularios del paciente (pacienteId):", error);
+        setLoadingFormHistory(false);
+      }
+    );
+
+    const unsubAltResponses = onSnapshot(
+      altResponsesQuery,
+      (snapshot) => {
+        currentAltResponses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as FormularioClinicoRespuesta[];
+        void applyMergedResponses();
+      },
+      () => {
+        // Consulta alternativa opcional para compatibilidad con datasets antiguos o migraciones parciales.
+      }
+    );
+
+    const unsubLegacyResponses = onSnapshot(
+      legacyResponsesQuery,
+      (snapshot) => {
+        currentLegacyResponses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as FormularioClinicoRespuesta[];
+        void applyMergedResponses();
+      },
+      () => {
+        // Consulta legacy opcional para compatibilidad con datos antiguos.
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubDocumentos();
+      unsubResponses();
+      unsubAltResponses();
+      unsubLegacyResponses();
+    };
   }, [id]);
 
   // Timeline combinado y ordenado
@@ -351,14 +611,49 @@ export default function ExpedienteDetallePage() {
       ...consultas.map(c => ({ id: c.id, tipo: "consulta" as const, fecha: c.fecha, data: c })),
       ...citas.map(c => ({ id: c.id, tipo: "cita" as const, fecha: c.fecha, data: c })),
       ...documentos.map(d => ({ id: d.id, tipo: "documento" as const, fecha: d.creado_en, data: d })),
+      ...patientResponses.map((response) => ({
+        id: `form-${response.id ?? response.formularioId}`,
+        tipo: "documento" as const,
+        fecha: response.modificado_en ?? response.creado_en,
+        data: {
+          ...response,
+          subtipo: "formulario",
+          nombre: response.formularioNombre,
+        },
+      })),
     ];
     return events.sort((a, b) => getFechaMs(b.fecha) - getFechaMs(a.fecha));
-  }, [consultas, citas, documentos]);
+  }, [consultas, citas, documentos, patientResponses]);
 
   const filteredEvents = useMemo(() => {
     if (timelineFilter === "todo") return allEvents;
     return allEvents.filter(e => e.tipo === timelineFilter);
   }, [allEvents, timelineFilter]);
+
+  const formHistoryByTemplate = useMemo(() => {
+    const groups = new Map<string, { latest: FormularioClinicoRespuesta; entries: FormularioClinicoRespuesta[] }>();
+
+    patientResponses.forEach((response) => {
+      const key = response.formularioId || response.formularioNombre;
+      const existing = groups.get(key);
+
+      if (!existing) {
+        groups.set(key, { latest: response, entries: [response] });
+        return;
+      }
+
+      existing.entries.push(response);
+      if (getFechaMs(response.modificado_en ?? response.creado_en) > getFechaMs(existing.latest.modificado_en ?? existing.latest.creado_en)) {
+        existing.latest = response;
+      }
+    });
+
+    return Array.from(groups.values()).sort(
+      (a, b) =>
+        getFechaMs(b.latest.modificado_en ?? b.latest.creado_en) -
+        getFechaMs(a.latest.modificado_en ?? a.latest.creado_en)
+    );
+  }, [patientResponses]);
 
   if (loading) {
     return (
@@ -390,6 +685,13 @@ export default function ExpedienteDetallePage() {
     { key: "cita", label: "Citas" },
     { key: "documento", label: "Documentos" },
   ];
+
+  const selectedForm = viewingResponse?.formularioId ? formsById[viewingResponse.formularioId] ?? null : null;
+
+  const handleViewResponse = (response: FormularioClinicoRespuesta) => {
+    setViewingResponse(response);
+    setOpenViewResponseModal(true);
+  };
 
   return (
     <div className="space-y-8">
@@ -485,12 +787,13 @@ export default function ExpedienteDetallePage() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Documentos
           </p>
+          <span className="px-2 py-0.5 text-[10px] rounded-full bg-violet-50 text-violet-700">
+            Formularios vinculados: {patientResponses.length}
+          </span>
         </div>
         <div className="card-notion">
-          {documentos.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">
-              Este paciente no tiene documentos adjuntos.
-            </p>
+          {documentos.length === 0 && patientResponses.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">Este paciente no tiene documentos adjuntos.</p>
           ) : (
             <div className="space-y-2">
               {documentos.map((d) => (
@@ -516,6 +819,102 @@ export default function ExpedienteDetallePage() {
                   </Button>
                 </div>
               ))}
+
+              {patientResponses.map((response) => (
+                <div key={response.id ?? response.formularioId} className="flex items-center gap-4 py-2 border-b border-gray-50 last:border-0">
+                  <FileText className="w-5 h-5 text-violet-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{response.formularioNombre}</p>
+                    <p className="text-xs text-gray-400">
+                      {response.estado === "completed" ? "Completado" : "Borrador"} · {formatFecha(response.modificado_en ?? response.creado_en)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
+                    onClick={() => handleViewResponse(response)}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    Ver respuestas
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Formularios históricos */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <FileText className="w-4 h-4 text-gray-500" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Formularios históricos
+          </p>
+        </div>
+
+        <div className="card-notion">
+          {loadingFormHistory ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              Cargando historial de formularios...
+            </div>
+          ) : formHistoryByTemplate.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">
+              No hay formularios históricos para este paciente.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {formHistoryByTemplate.map((group, idx) => {
+                const latest = group.latest;
+                const statusClass =
+                  latest.estado === "completed"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700";
+
+                return (
+                  <div key={`${latest.formularioId}-${idx}`} className="rounded-lg border border-gray-100 bg-gray-50/60 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{latest.formularioNombre}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Última actualización: {formatFecha(latest.modificado_en ?? latest.creado_en)} · v{latest.formularioVersion ?? "—"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Registros históricos: {group.entries.length}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-0.5 text-[10px] rounded-full font-medium ${statusClass}`}>
+                          {latest.estado === "completed" ? "Completado" : "Borrador"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-blue-600 hover:text-blue-700"
+                          onClick={() => handleViewResponse(latest)}
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Ver respuestas
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {group.entries.slice(0, 3).map((entry) => (
+                        <span key={entry.id ?? `${entry.formularioId}-${entry.creado_en}`} className="px-2 py-0.5 text-[10px] rounded-full bg-white border border-gray-200 text-gray-600">
+                          {entry.estado === "completed" ? "Completado" : "Borrador"} · {formatFecha(entry.modificado_en ?? entry.creado_en)}
+                        </span>
+                      ))}
+                      {group.entries.length > 3 && (
+                        <span className="px-2 py-0.5 text-[10px] rounded-full bg-white border border-gray-200 text-gray-500">
+                          +{group.entries.length - 3} registro(s) más
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -617,22 +1016,41 @@ export default function ExpedienteDetallePage() {
                     {event.tipo === "documento" && (
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          {event.data.tipo === "imagen"
-                            ? <Image className="w-4 h-4 text-violet-400 shrink-0" />
-                            : <FileText className="w-4 h-4 text-violet-400 shrink-0" />
-                          }
+                          {event.data.subtipo === "formulario" ? (
+                            <FileText className="w-4 h-4 text-violet-400 shrink-0" />
+                          ) : event.data.tipo === "imagen" ? (
+                            <Image className="w-4 h-4 text-violet-400 shrink-0" />
+                          ) : (
+                            <FileText className="w-4 h-4 text-violet-400 shrink-0" />
+                          )}
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{event.data.nombre}</p>
-                            <p className="text-xs text-gray-400">{formatTamaño(event.data.tamaño)}</p>
+                            <p className="text-xs text-gray-400">
+                              {event.data.subtipo === "formulario"
+                                ? event.data.estado === "completed"
+                                  ? "Completado"
+                                  : "Borrador"
+                                : formatTamaño(event.data.tamaño)}
+                            </p>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost" size="sm"
-                          className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
-                          onClick={() => window.open(event.data.url, "_blank")}
-                        >
-                          <ExternalLink className="w-3 h-3 mr-1" />Abrir
-                        </Button>
+                        {event.data.subtipo === "formulario" ? (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
+                            onClick={() => handleViewResponse(event.data)}
+                          >
+                            <ExternalLink className="w-3 h-3 mr-1" />Ver respuestas
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
+                            onClick={() => window.open(event.data.url, "_blank")}
+                          >
+                            <ExternalLink className="w-3 h-3 mr-1" />Abrir
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -642,6 +1060,19 @@ export default function ExpedienteDetallePage() {
           </div>
         )}
       </div>
+
+      <FormularioHistoricoModal
+        open={openViewResponseModal}
+        onOpenChange={(open) => {
+          setOpenViewResponseModal(open);
+          if (!open) {
+            setViewingResponse(null);
+          }
+        }}
+        formulario={selectedForm}
+        response={viewingResponse}
+        patientName={`${paciente.nombre} ${paciente.apellidos}`}
+      />
 
     </div>
   );
