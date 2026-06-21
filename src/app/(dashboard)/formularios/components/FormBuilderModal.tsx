@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,40 +90,6 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
     [form.campos, selectedFieldId]
   );
 
-  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
-
-  const handleDragStart = (fieldId: string) => {
-    setDraggedFieldId(fieldId);
-  };
-
-  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-  };
-
-  const handleDrop = (targetFieldId: string) => {
-    if (!draggedFieldId || draggedFieldId === targetFieldId) {
-      setDraggedFieldId(null);
-      return;
-    }
-
-    const sourceIndex = form.campos.findIndex((campo) => campo.id === draggedFieldId);
-    const targetIndex = form.campos.findIndex((campo) => campo.id === targetFieldId);
-    if (sourceIndex === -1 || targetIndex === -1) {
-      setDraggedFieldId(null);
-      return;
-    }
-
-    const reordered = Array.from(form.campos);
-    const [removed] = reordered.splice(sourceIndex, 1);
-    reordered.splice(targetIndex, 0, removed);
-
-    setForm((current) => ({
-      ...current,
-      campos: reordered.map((campo, index) => ({ ...campo, orden: index + 1 })),
-    }));
-    setDraggedFieldId(null);
-  };
-
   const addField = (tipo: CampoTipo) => {
     const nextOrder = form.campos.length + 1;
     const nuevoCampo = getEmptyField(tipo, nextOrder);
@@ -151,6 +118,17 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
       };
     });
     setSelectedFieldId((current) => (current === fieldId ? null : current));
+  };
+
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const reordered = Array.from(form.campos);
+    const [removed] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, removed);
+    setForm((current) => ({
+      ...current,
+      campos: reordered.map((campo, index) => ({ ...campo, orden: index + 1 })),
+    }));
   };
 
   const validateForm = () => {
@@ -307,38 +285,46 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
                     <Badge className="text-xs">{form.campos.length} campos</Badge>
                   </div>
 
-                  <div className="space-y-3">
-                    {form.campos.map((campo) => (
-                      <div
-                        key={campo.id}
-                        draggable
-                        onDragStart={() => handleDragStart(campo.id)}
-                        onDragOver={handleDragOver}
-                        onDrop={() => handleDrop(campo.id)}
-                        className={`rounded-xl border p-4 ${selectedFieldId === campo.id ? "border-primary bg-primary/5" : "border-gray-200 bg-white"}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-600">
-                              <ArrowUpDown className="w-4 h-4" />
-                            </span>
-                            <div>
-                              <p className="font-semibold text-gray-900">{campo.etiqueta || fieldLabels[campo.tipo]}</p>
-                              <p className="text-xs text-gray-500">{fieldLabels[campo.tipo]} {campo.requerido ? "• Requerido" : "• Opcional"}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedFieldId(campo.id)}>
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => deleteField(campo.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                  <DragDropContext onDragEnd={handleDragEnd}>
+                    <Droppable droppableId="formularios-campos">
+                      {(provided) => (
+                        <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-3">
+                          {form.campos.map((campo, index) => (
+                            <Draggable key={campo.id} draggableId={campo.id} index={index}>
+                              {(dragProvided) => (
+                                <div
+                                  ref={dragProvided.innerRef}
+                                  {...dragProvided.draggableProps}
+                                  className={`rounded-xl border p-4 ${selectedFieldId === campo.id ? "border-primary bg-primary/5" : "border-gray-200 bg-white"}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span {...dragProvided.dragHandleProps} className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+                                        <ArrowUpDown className="w-4 h-4" />
+                                      </span>
+                                      <div>
+                                        <p className="font-semibold text-gray-900">{campo.etiqueta || fieldLabels[campo.tipo]}</p>
+                                        <p className="text-xs text-gray-500">{fieldLabels[campo.tipo]} {campo.requerido ? "• Requerido" : "• Opcional"}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button variant="ghost" size="sm" onClick={() => setSelectedFieldId(campo.id)}>
+                                        <Eye className="w-4 h-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => deleteField(campo.id)}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
                 </div>
 
                 <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">

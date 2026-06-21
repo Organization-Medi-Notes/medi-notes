@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -28,14 +29,41 @@ export const formularioService = {
       const medicoId = getMedicoId();
       const formulariosQuery = query(
         collection(this.db, "formularios_clinicos"),
-        where("creado_por", "==", medicoId),
-        where("activo", "==", true),
-        orderBy("modificado_en", "desc")
+        where("creado_por", "==", medicoId)
       );
       const snapshot = await getDocs(formulariosQuery);
-      return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico));
+      return snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico))
+        .filter((formulario) => formulario.activo !== false)
+        .sort((a, b) => {
+          const timeA = a.modificado_en instanceof Object && 'toMillis' in a.modificado_en ? a.modificado_en.toMillis() : 0;
+          const timeB = b.modificado_en instanceof Object && 'toMillis' in b.modificado_en ? b.modificado_en.toMillis() : 0;
+          return timeB - timeA;
+        });
     } catch (error) {
       console.error("Error cargando formularios clínicos:", error);
+      return [] as FormularioClinico[];
+    }
+  },
+
+  async getArchived() {
+    try {
+      const medicoId = getMedicoId();
+      const formulariosQuery = query(
+        collection(this.db, "formularios_clinicos"),
+        where("creado_por", "==", medicoId)
+      );
+      const snapshot = await getDocs(formulariosQuery);
+      return snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico))
+        .filter((formulario) => formulario.activo === false)
+        .sort((a, b) => {
+          const timeA = a.modificado_en instanceof Object && 'toMillis' in a.modificado_en ? a.modificado_en.toMillis() : 0;
+          const timeB = b.modificado_en instanceof Object && 'toMillis' in b.modificado_en ? b.modificado_en.toMillis() : 0;
+          return timeB - timeA;
+        });
+    } catch (error) {
+      console.error("Error cargando formularios archivados:", error);
       return [] as FormularioClinico[];
     }
   },
@@ -85,5 +113,18 @@ export const formularioService = {
       activo: false,
       modificado_en: serverTimestamp(),
     });
+  },
+
+  async unarchive(id: string) {
+    const documento = doc(this.db, "formularios_clinicos", id);
+    return await updateDoc(documento, {
+      activo: true,
+      modificado_en: serverTimestamp(),
+    });
+  },
+
+  async delete(id: string) {
+    const documento = doc(this.db, "formularios_clinicos", id);
+    return await deleteDoc(documento);
   },
 };
