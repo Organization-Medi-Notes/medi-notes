@@ -11,19 +11,33 @@ import {
   ChevronRight,
   Clock,
   UserPlus,
-  Loader2
+  Loader2,
+  FileText
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { appointmentService, patientService } from "@/lib/firebase/db-service";
+import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioService";
+import { formularioService } from "@/lib/firebase/formularioService";
+import { FormularioClinico } from "@/lib/types/formulario.types";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CitaFormFiller, FormResponseValue } from "../calendario/components/CitaFormFiller";
 
 export default function DashboardPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [patientsCount, setPatientsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [openAppointmentDetail, setOpenAppointmentDetail] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+  const [assignedForms, setAssignedForms] = useState<any[]>([]);
+  const [formsById, setFormsById] = useState<Record<string, FormularioClinico>>({});
+  const [loadingAssignedForms, setLoadingAssignedForms] = useState(false);
+  const [openFillForm, setOpenFillForm] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
+  const [savingFormResponse, setSavingFormResponse] = useState(false);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -57,6 +71,71 @@ export default function DashboardPage() {
   }, 0);
 
   const cancellations = allAppointments.filter(apt => apt.estado === 'cancelada').length;
+
+  async function handleOpenAppointmentDetail(apt: any) {
+    setSelectedAppointment(apt);
+    setOpenAppointmentDetail(true);
+
+    try {
+      setLoadingAssignedForms(true);
+      const assignments = await respuestaFormularioService.getAssignedForms(apt.id);
+      setAssignedForms(assignments);
+
+      const uniqueFormIds = Array.from(new Set(assignments.map((a) => a.formularioId).filter(Boolean)));
+      const forms = await Promise.all(uniqueFormIds.map((formId) => formularioService.getById(formId)));
+      const formMap: Record<string, FormularioClinico> = {};
+
+      forms.forEach((form) => {
+        if (form?.id) {
+          formMap[form.id] = form;
+        }
+      });
+
+      setFormsById(formMap);
+    } catch (error) {
+      console.error("Error cargando detalle de cita y formularios:", error);
+      setAssignedForms([]);
+      setFormsById({});
+    } finally {
+      setLoadingAssignedForms(false);
+    }
+  }
+
+  function handleOpenFiller(assignment: any) {
+    setSelectedAssignment(assignment);
+    setOpenFillForm(true);
+  }
+
+  async function handleSaveFormResponse(values: Record<string, FormResponseValue>, status: "draft" | "completed") {
+    if (!selectedAssignment?.id || !selectedAppointment?.id) return;
+
+    try {
+      setSavingFormResponse(true);
+      await respuestaFormularioService.updateAssignedForm(selectedAssignment.id, {
+        respuestas: values,
+        estado: status,
+      });
+
+      const refreshed = await respuestaFormularioService.getAssignedForms(selectedAppointment.id);
+      setAssignedForms(refreshed);
+      const updatedSelection = refreshed.find((item) => item.id === selectedAssignment.id) ?? null;
+      setSelectedAssignment(updatedSelection);
+
+      if (status === "completed") {
+        setOpenFillForm(false);
+      }
+    } catch (error) {
+      console.error("Error guardando respuesta del formulario:", error);
+    } finally {
+      setSavingFormResponse(false);
+    }
+  }
+
+  function getAssignmentStatusClass(status: string) {
+    if (status === "completed") return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    if (status === "draft") return "bg-amber-50 text-amber-700 border-amber-100";
+    return "bg-slate-50 text-slate-700 border-slate-100";
+  }
 
   const metrics = [
     { title: "Citas Hoy", value: appointments.length, change: "Hoy", trend: 'neutral' as const, icon: CalendarCheck, colorClass: "bg-blue-50 text-blue-600" },
@@ -112,7 +191,11 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {appointments.map((apt, idx) => (
-                  <div key={idx} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
+                  <div
+                    key={idx}
+                    onClick={() => handleOpenAppointmentDetail(apt)}
+                    className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group cursor-pointer"
+                  >
                     <div className="flex items-center gap-6">
                       <span className="text-sm font-bold text-gray-900 w-12">{apt.hora_inicio}</span>
                       <div>
@@ -161,6 +244,102 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={openAppointmentDetail}
+        onOpenChange={(open) => {
+          setOpenAppointmentDetail(open);
+          if (!open) {
+            setSelectedAppointment(null);
+            setAssignedForms([]);
+            setFormsById({});
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle de cita</DialogTitle>
+            <DialogDescription>
+              Revise la información de la cita y complete el formulario previamente asignado.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAppointment && (
+            <div className="space-y-6 mt-4">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm text-gray-500">Paciente</p>
+                <p className="font-semibold text-gray-900">{selectedAppointment.paciente_nombre}</p>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-500">Hora</p>
+                    <p className="font-medium text-gray-900">{selectedAppointment.hora_inicio}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Tipo</p>
+                    <p className="font-medium text-gray-900">{selectedAppointment.tipo_consulta}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Estado</p>
+                    <Badge className={cn("capitalize", getAssignmentStatusClass(selectedAppointment.estado))}>
+                      {selectedAppointment.estado}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900">Formulario asignado</h3>
+                {loadingAssignedForms ? (
+                  <div className="rounded-xl border border-gray-200 p-6 flex items-center justify-center text-gray-500">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Cargando formularios...
+                  </div>
+                ) : assignedForms.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
+                    Esta cita no tiene formularios asignados.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {assignedForms.map((assignment) => (
+                      <div key={assignment.id} className="rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-gray-900">{assignment.formularioNombre}</p>
+                          <p className="text-xs text-gray-500">{assignment.formularioEspecialidad}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn("capitalize", getAssignmentStatusClass(assignment.estado))}>
+                            {assignment.estado === "assigned"
+                              ? "asignado"
+                              : assignment.estado === "draft"
+                              ? "borrador"
+                              : "completado"}
+                          </Badge>
+                          <Button size="sm" onClick={() => handleOpenFiller(assignment)}>
+                            <FileText className="w-4 h-4 mr-2" />
+                            {assignment.estado === "completed" ? "Ver" : "Llenar"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <CitaFormFiller
+        open={openFillForm}
+        onOpenChange={(open) => {
+          setOpenFillForm(open);
+          if (!open) setSelectedAssignment(null);
+        }}
+        formulario={selectedAssignment?.formularioId ? formsById[selectedAssignment.formularioId] ?? null : null}
+        assignment={selectedAssignment}
+        onSave={handleSaveFormResponse}
+        saving={savingFormResponse}
+      />
     </div>
   );
 }
