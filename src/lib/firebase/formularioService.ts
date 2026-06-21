@@ -5,15 +5,13 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
-  Timestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
 import { auth, db } from "./config";
-import { FormularioClinico } from "@/lib/types/formulario.types";
+import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
 
 function getMedicoId(): string {
   const uid = auth.currentUser?.uid;
@@ -103,6 +101,55 @@ export const formularioService = {
       activo: true,
       creado_por: getMedicoId(),
       creado_en: serverTimestamp(),
+      modificado_en: serverTimestamp(),
+    });
+  },
+
+  async getPatientResponses(pacienteId: string) {
+    try {
+      const respuestasQuery = query(
+        collection(this.db, "formularios_paciente"),
+        where("pacienteId", "==", pacienteId)
+      );
+      const snapshot = await getDocs(respuestasQuery);
+      return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinicoRespuesta));
+    } catch (error) {
+      console.error("Error cargando respuestas de formularios del paciente:", error);
+      return [] as FormularioClinicoRespuesta[];
+    }
+  },
+
+  async getPatientResponse(pacienteId: string, formularioId: string) {
+    try {
+      const respuestasQuery = query(
+        collection(this.db, "formularios_paciente"),
+        where("pacienteId", "==", pacienteId),
+        where("formularioId", "==", formularioId)
+      );
+      const snapshot = await getDocs(respuestasQuery);
+      const docSnap = snapshot.docs[0];
+      return docSnap ? ({ id: docSnap.id, ...docSnap.data() } as FormularioClinicoRespuesta) : null;
+    } catch (error) {
+      console.error("Error cargando respuesta clínica del paciente:", error);
+      return null;
+    }
+  },
+
+  async savePatientResponse(response: Omit<FormularioClinicoRespuesta, "id" | "creado_en" | "modificado_en">) {
+    return await addDoc(collection(this.db, "formularios_paciente"), {
+      ...response,
+      creado_en: serverTimestamp(),
+      modificado_en: serverTimestamp(),
+    });
+  },
+
+  async updatePatientResponse(
+    id: string,
+    response: Partial<Omit<FormularioClinicoRespuesta, "id" | "pacienteId" | "formularioId" | "creado_en" | "doctorId">>
+  ) {
+    const documento = doc(this.db, "formularios_paciente", id);
+    return await updateDoc(documento, {
+      ...response,
       modificado_en: serverTimestamp(),
     });
   },
