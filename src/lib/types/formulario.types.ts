@@ -29,6 +29,7 @@ export interface FormularioClinico {
   campos: CampoFormulario[];
   version: number;
   activo: boolean;
+  estadoFormulario?: "activo" | "plantilla";
   creado_por: string;
   creado_en: Timestamp;
   modificado_en: Timestamp;

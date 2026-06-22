@@ -8,29 +8,34 @@ import { useToast } from "@/hooks/use-toast";
 import { FormBuilderModal } from "./components/FormBuilderModal";
 import { FormPreviewModal } from "./components/FormPreviewModal";
 import { FormCard } from "./components/FormCard";
+import { UseTemplateModal } from "./components/UseTemplateModal";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico } from "@/lib/types/formulario.types";
 
 export default function FormulariosPage() {
   const { toast } = useToast();
   const [formularios, setFormularios] = useState<FormularioClinico[]>([]);
+  const [plantillas, setPlantillas] = useState<FormularioClinico[]>([]);
   const [formulariosArchivados, setFormulariosArchivados] = useState<FormularioClinico[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
-  const [builderMode, setBuilderMode] = useState<"create" | "edit" | "duplicate">("create");
+  const [builderMode, setBuilderMode] = useState<"create" | "edit" | "duplicate" | "template">("create");
   const [formToEdit, setFormToEdit] = useState<FormularioClinico | null>(null);
   const [previewForm, setPreviewForm] = useState<FormularioClinico | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isUseTemplateOpen, setIsUseTemplateOpen] = useState(false);
 
   const loadFormularios = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, archived] = await Promise.all([
-        formularioService.getAll(),
+      const [data, templates, archived] = await Promise.all([
+        formularioService.getManageable(),
+        formularioService.getTemplates(),
         formularioService.getArchived()
       ]);
       setFormularios(data);
+      setPlantillas(templates);
       setFormulariosArchivados(archived);
     } catch (error) {
       console.error("Error cargando formularios:", error);
@@ -50,6 +55,10 @@ export default function FormulariosPage() {
     setIsBuilderOpen(true);
   }, []);
 
+  const handleOpenUseTemplate = useCallback(() => {
+    setIsUseTemplateOpen(true);
+  }, []);
+
   const handleOpenEdit = useCallback((formulario: FormularioClinico) => {
     setBuilderMode("edit");
     setFormToEdit(formulario);
@@ -65,6 +74,13 @@ export default function FormulariosPage() {
   const handlePreview = useCallback((formulario: FormularioClinico) => {
     setPreviewForm(formulario);
     setIsPreviewOpen(true);
+  }, []);
+
+  const handleUseTemplate = useCallback((formulario: FormularioClinico) => {
+    setBuilderMode("template");
+    setFormToEdit(formulario);
+    setIsUseTemplateOpen(false);
+    setIsBuilderOpen(true);
   }, []);
 
   const handleArchive = useCallback(async (formulario: FormularioClinico) => {
@@ -126,6 +142,12 @@ export default function FormulariosPage() {
             Formularios Clínicos
           </h1>
           <p className="text-gray-500 mt-1">Cree y gestione formularios clínicos estructurados para sus consultas.</p>
+          {!showArchived && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge className="text-xs bg-emerald-50 text-emerald-700">Activos: {formularios.filter((formulario) => formulario.estadoFormulario !== "plantilla").length}</Badge>
+              <Badge className="text-xs bg-amber-50 text-amber-700">Plantillas: {plantillas.length}</Badge>
+            </div>
+          )}
         </div>
         <div className="flex gap-3">
           {formulariosArchivados.length > 0 && (
@@ -139,10 +161,15 @@ export default function FormulariosPage() {
             </Button>
           )}
           {!showArchived && (
-            <Button className="h-11 bg-primary hover:bg-primary-dark" onClick={handleOpenCreate}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo formulario
-            </Button>
+            <>
+              <Button variant="outline" className="h-11" onClick={handleOpenUseTemplate}>
+                Usar plantilla
+              </Button>
+              <Button className="h-11 bg-primary hover:bg-primary-dark" onClick={handleOpenCreate}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo formulario
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -201,6 +228,13 @@ export default function FormulariosPage() {
         formToEdit={formToEdit}
         onOpenChange={setIsBuilderOpen}
         onSaved={handleSaved}
+      />
+
+      <UseTemplateModal
+        open={isUseTemplateOpen}
+        forms={plantillas}
+        onOpenChange={setIsUseTemplateOpen}
+        onUseTemplate={handleUseTemplate}
       />
 
       <FormPreviewModal open={isPreviewOpen} form={previewForm} onOpenChange={setIsPreviewOpen} />
