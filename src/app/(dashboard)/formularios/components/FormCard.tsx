@@ -1,19 +1,20 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Edit, Archive, Eye, FileText, Trash2 } from "lucide-react";
+import { Copy, Edit, Archive, Eye, FileText, History, Trash2 } from "lucide-react";
 import { FormularioClinico } from "@/lib/types/formulario.types";
 
 interface FormCardProps {
   form: FormularioClinico;
   onEdit?: (form: FormularioClinico) => void;
+  onHistory?: (form: FormularioClinico) => void;
   onDuplicate?: (form: FormularioClinico) => void;
   onArchive?: (form: FormularioClinico) => void;
   onDelete?: (form: FormularioClinico) => void;
   onPreview: (form: FormularioClinico) => void;
 }
 
-export function FormCard({ form, onEdit, onDuplicate, onArchive, onDelete, onPreview }: FormCardProps) {
+export function FormCard({ form, onEdit, onHistory, onDuplicate, onArchive, onDelete, onPreview }: FormCardProps) {
   const isTemplate = form.estadoFormulario === "plantilla";
 
   return (
@@ -48,6 +49,12 @@ export function FormCard({ form, onEdit, onDuplicate, onArchive, onDelete, onPre
             <Eye className="w-4 h-4 mr-2" />
             Previsualizar
           </Button>
+          {onHistory && (
+            <Button variant="ghost" size="sm" onClick={() => onHistory(form)}>
+              <History className="w-4 h-4 mr-2" />
+              Historial
+            </Button>
+          )}
           {onEdit && (
             <Button variant="outline" size="sm" onClick={() => onEdit(form)}>
               <Edit className="w-4 h-4 mr-2" />

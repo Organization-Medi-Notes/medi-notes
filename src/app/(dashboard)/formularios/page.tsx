@@ -9,14 +9,70 @@ import { FormBuilderModal } from "./components/FormBuilderModal";
 import { FormPreviewModal } from "./components/FormPreviewModal";
 import { FormCard } from "./components/FormCard";
 import { UseTemplateModal } from "./components/UseTemplateModal";
+import { FormVersionHistoryModal } from "./components/FormVersionHistoryModal";
 import { formularioService } from "@/lib/firebase/formularioService";
+import { auth, db } from "@/lib/firebase/config";
 import { FormularioClinico } from "@/lib/types/formulario.types";
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+
+type VersionedForm = FormularioClinico & {
+  baseFormularioId?: string;
+  isCurrentVersion?: boolean;
+  previousVersionId?: string;
+};
+
+function getFechaMs(fecha: any): number {
+  if (!fecha) return 0;
+  try {
+    const date = fecha?.toDate ? fecha.toDate() : new Date(fecha);
+    return date.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+function resolveBaseId(formulario: VersionedForm): string {
+  return formulario.baseFormularioId ?? formulario.id ?? "";
+}
+
+function getCurrentForms(forms: VersionedForm[]) {
+  const groups = new Map<string, VersionedForm[]>();
+
+  forms.forEach((form) => {
+    const key = resolveBaseId(form);
+    if (!key) return;
+    const existing = groups.get(key) ?? [];
+    existing.push(form);
+    groups.set(key, existing);
+  });
+
+  const current: VersionedForm[] = [];
+  groups.forEach((items) => {
+    const explicit = items.find((item) => item.isCurrentVersion === true);
+    if (explicit) {
+      current.push(explicit);
+      return;
+    }
+
+    const fallback = [...items].sort((a, b) => {
+      const byVersion = (b.version ?? 1) - (a.version ?? 1);
+      if (byVersion !== 0) return byVersion;
+      return getFechaMs(b.modificado_en ?? b.creado_en) - getFechaMs(a.modificado_en ?? a.creado_en);
+    })[0];
+
+    if (fallback) current.push(fallback);
+  });
+
+  return current;
+}
 
 export default function FormulariosPage() {
   const { toast } = useToast();
-  const [formularios, setFormularios] = useState<FormularioClinico[]>([]);
-  const [plantillas, setPlantillas] = useState<FormularioClinico[]>([]);
-  const [formulariosArchivados, setFormulariosArchivados] = useState<FormularioClinico[]>([]);
+  const [formularios, setFormularios] = useState<VersionedForm[]>([]);
+  const [plantillas, setPlantillas] = useState<VersionedForm[]>([]);
+  const [formulariosArchivados, setFormulariosArchivados] = useState<VersionedForm[]>([]);
+  const [allManageableForms, setAllManageableForms] = useState<VersionedForm[]>([]);
+  const [allArchivedForms, setAllArchivedForms] = useState<VersionedForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
@@ -25,6 +81,32 @@ export default function FormulariosPage() {
   const [previewForm, setPreviewForm] = useState<FormularioClinico | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUseTemplateOpen, setIsUseTemplateOpen] = useState(false);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [historyForm, setHistoryForm] = useState<VersionedForm | null>(null);
+  const [historyVersions, setHistoryVersions] = useState<VersionedForm[]>([]);
+
+  const refreshHistory = useCallback((formulario: VersionedForm, manageable: VersionedForm[], archived: VersionedForm[]) => {
+    const baseId = resolveBaseId(formulario);
+    const pool = [...manageable, ...archived];
+
+    const versions = pool
+      .filter((item) => resolveBaseId(item) === baseId)
+      .sort((a, b) => {
+        const byVersion = (b.version ?? 1) - (a.version ?? 1);
+        if (byVersion !== 0) return byVersion;
+        return getFechaMs(b.modificado_en ?? b.creado_en) - getFechaMs(a.modificado_en ?? a.creado_en);
+      });
+
+    const currentId = getCurrentForms(versions)[0]?.id;
+    const normalized = versions.map((item) => ({
+      ...item,
+      isCurrentVersion: item.id === currentId,
+    }));
+
+    setHistoryForm(formulario);
+    setHistoryVersions(normalized);
+    setIsVersionHistoryOpen(true);
+  }, []);
 
   const loadFormularios = useCallback(async () => {
     setLoading(true);
@@ -34,9 +116,20 @@ export default function FormulariosPage() {
         formularioService.getTemplates(),
         formularioService.getArchived()
       ]);
-      setFormularios(data);
-      setPlantillas(templates);
-      setFormulariosArchivados(archived);
+
+      const manageableRows = data as VersionedForm[];
+      const archivedRows = archived as VersionedForm[];
+      const templateRows = templates as VersionedForm[];
+
+      setAllManageableForms(manageableRows);
+      setAllArchivedForms(archivedRows);
+
+      const currentManageable = getCurrentForms(manageableRows);
+      const currentArchived = getCurrentForms(archivedRows);
+
+      setFormularios(currentManageable.filter((formulario) => formulario.estadoFormulario !== "plantilla"));
+      setPlantillas(currentManageable.filter((formulario) => formulario.estadoFormulario === "plantilla"));
+      setFormulariosArchivados(currentArchived);
     } catch (error) {
       console.error("Error cargando formularios:", error);
       toast({ title: "Error", description: "No se pudieron cargar los formularios.", variant: "destructive" });
@@ -64,6 +157,10 @@ export default function FormulariosPage() {
     setFormToEdit(formulario);
     setIsBuilderOpen(true);
   }, []);
+
+  const handleOpenHistory = useCallback((formulario: FormularioClinico) => {
+    refreshHistory(formulario as VersionedForm, allManageableForms, allArchivedForms);
+  }, [allArchivedForms, allManageableForms, refreshHistory]);
 
   const handleOpenDuplicate = useCallback((formulario: FormularioClinico) => {
     setBuilderMode("duplicate");
@@ -130,6 +227,110 @@ export default function FormulariosPage() {
   const handleSaved = useCallback(async () => {
     await loadFormularios();
   }, [loadFormularios]);
+
+  const handleCreateVersion = useCallback(async (params: {
+    sourceForm: FormularioClinico;
+    payload: {
+      nombre: string;
+      descripcion: string;
+      especialidad: string;
+      campos: any[];
+      estadoFormulario: "activo" | "plantilla";
+    };
+  }) => {
+    const { sourceForm, payload } = params;
+    if (!sourceForm.id) throw new Error("El formulario no tiene identificador.");
+
+    const medicoId = auth.currentUser?.uid;
+    if (!medicoId) throw new Error("No hay un usuario autenticado.");
+
+    const source = sourceForm as VersionedForm;
+    const baseFormularioId = resolveBaseId(source);
+    const nextVersion = (source.version ?? 1) + 1;
+
+    const currentVersionsQuery = query(
+      collection(db, "formularios_clinicos"),
+      where("creado_por", "==", medicoId),
+      where("baseFormularioId", "==", baseFormularioId),
+      where("isCurrentVersion", "==", true)
+    );
+
+    const currentVersions = await getDocs(currentVersionsQuery);
+    await Promise.all(currentVersions.docs.map((row) => updateDoc(row.ref, { isCurrentVersion: false })));
+
+    await updateDoc(doc(db, "formularios_clinicos", sourceForm.id), {
+      isCurrentVersion: false,
+      modificado_en: serverTimestamp(),
+    });
+
+    await addDoc(collection(db, "formularios_clinicos"), {
+      ...payload,
+      version: nextVersion,
+      activo: sourceForm.activo !== false,
+      baseFormularioId,
+      previousVersionId: sourceForm.id,
+      isCurrentVersion: true,
+      creado_por: medicoId,
+      creado_en: serverTimestamp(),
+      modificado_en: serverTimestamp(),
+    });
+  }, []);
+
+  const handleRestoreVersion = useCallback(async (version: VersionedForm) => {
+    const medicoId = auth.currentUser?.uid;
+    if (!medicoId) throw new Error("No hay un usuario autenticado.");
+    if (!version.id) throw new Error("La versi\u00f3n no tiene identificador.");
+
+    const baseFormularioId = resolveBaseId(version);
+
+    const allVersionsQuery = query(
+      collection(db, "formularios_clinicos"),
+      where("creado_por", "==", medicoId),
+      where("baseFormularioId", "==", baseFormularioId)
+    );
+
+    const allSnap = await getDocs(allVersionsQuery);
+    const maxVersion = allSnap.docs.reduce((max, d) => Math.max(max, (d.data().version ?? 1)), 0);
+    const nextVersion = maxVersion + 1;
+
+    await Promise.all(
+      allSnap.docs
+        .filter((d) => d.data().isCurrentVersion === true)
+        .map((d) => updateDoc(d.ref, { isCurrentVersion: false }))
+    );
+
+    if (!version.baseFormularioId) {
+      await updateDoc(doc(db, "formularios_clinicos", version.id), {
+        isCurrentVersion: false,
+        modificado_en: serverTimestamp(),
+      });
+    }
+
+    await addDoc(collection(db, "formularios_clinicos"), {
+      nombre: version.nombre,
+      descripcion: version.descripcion,
+      especialidad: version.especialidad,
+      campos: version.campos.map((c) => ({ ...c })),
+      estadoFormulario: version.estadoFormulario ?? "activo",
+      version: nextVersion,
+      activo: version.activo !== false,
+      baseFormularioId,
+      previousVersionId: version.id,
+      isCurrentVersion: true,
+      creado_por: medicoId,
+      creado_en: serverTimestamp(),
+      modificado_en: serverTimestamp(),
+    });
+
+    toast({ title: "Versi\u00f3n restaurada", description: `El formulario fue restaurado a v${version.version} como una nueva entrada (v${nextVersion}).` });
+    await loadFormularios();
+
+    const updatedManageable = allManageableForms;
+    const updatedArchived = allArchivedForms;
+    if (historyForm) {
+      refreshHistory(historyForm, updatedManageable, updatedArchived);
+    }
+  }, [allArchivedForms, allManageableForms, historyForm, loadFormularios, refreshHistory, toast]);
 
   const displayFormularios = showArchived ? formulariosArchivados : formularios;
 
@@ -198,6 +399,7 @@ export default function FormulariosPage() {
                 <FormCard
                   form={formulario}
                   onEdit={!showArchived ? handleOpenEdit : undefined}
+                  onHistory={handleOpenHistory}
                   onDuplicate={!showArchived ? handleOpenDuplicate : undefined}
                   onArchive={!showArchived ? handleArchive : undefined}
                   onDelete={showArchived ? handleDelete : undefined}
@@ -228,6 +430,7 @@ export default function FormulariosPage() {
         formToEdit={formToEdit}
         onOpenChange={setIsBuilderOpen}
         onSaved={handleSaved}
+        onSaveVersion={handleCreateVersion}
       />
 
       <UseTemplateModal
@@ -235,6 +438,20 @@ export default function FormulariosPage() {
         forms={plantillas}
         onOpenChange={setIsUseTemplateOpen}
         onUseTemplate={handleUseTemplate}
+      />
+
+      <FormVersionHistoryModal
+        open={isVersionHistoryOpen}
+        onOpenChange={(open) => {
+          setIsVersionHistoryOpen(open);
+          if (!open) {
+            setHistoryForm(null);
+            setHistoryVersions([]);
+          }
+        }}
+        formName={historyForm?.nombre ?? ""}
+        versions={historyVersions}
+        onRestore={handleRestoreVersion}
       />
 
       <FormPreviewModal open={isPreviewOpen} form={previewForm} onOpenChange={setIsPreviewOpen} />
