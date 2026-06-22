@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormularioClinico } from "@/lib/types/formulario.types";
+import { Printer } from "lucide-react";
 
 interface FormPreviewModalProps {
   open: boolean;
   form: FormularioClinico | null;
   onOpenChange: (open: boolean) => void;
+  onPrint?: (form: FormularioClinico) => void;
 }
 
 const renderFieldPreview = (field: FormularioClinico["campos"][number]) => {
@@ -68,7 +70,7 @@ const renderFieldPreview = (field: FormularioClinico["campos"][number]) => {
   }
 };
 
-export function FormPreviewModal({ open, form, onOpenChange }: FormPreviewModalProps) {
+export function FormPreviewModal({ open, form, onOpenChange, onPrint }: FormPreviewModalProps) {
   if (!form) return null;
 
   return (
@@ -102,6 +104,12 @@ export function FormPreviewModal({ open, form, onOpenChange }: FormPreviewModalP
         </div>
 
         <DialogFooter className="mt-6">
+          {onPrint && (
+            <Button variant="outline" className="h-11" onClick={() => onPrint(form)}>
+              <Printer className="w-4 h-4 mr-2" />
+              Imprimir
+            </Button>
+          )}
           <Button className="h-11 bg-primary hover:bg-primary-dark" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>

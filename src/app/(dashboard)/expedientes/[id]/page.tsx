@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, User, ClipboardList,
   Calendar, CheckCircle, CalendarDays, Clock,
   AlertTriangle, Pill, BookOpen, ShieldAlert, BarChart2,
-  Paperclip, FileText, Image, ExternalLink
+  Paperclip, FileText, Image, ExternalLink, Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import {
 import { db } from "@/lib/firebase/config";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
+import { printFormularioClinico } from "@/lib/formulario-print";
 
 interface Paciente {
   id: string;
@@ -297,9 +298,33 @@ function FormularioHistoricoModal({
                 Historial clínico del paciente en modo solo lectura.
               </DialogDescription>
             </div>
-            <span className={`px-2.5 py-0.5 text-[10px] rounded-full font-medium border ${statusClass}`}>
-              {response.estado === "completed" ? "Completado" : "Borrador"}
-            </span>
+            <div className="flex items-center gap-2">
+              {formulario && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    printFormularioClinico({
+                      formulario,
+                      patientName,
+                      response: {
+                        respuestas: response.respuestas,
+                        estado: response.estado,
+                        doctorId: response.doctorId,
+                        fecha: response.modificado_en ?? response.creado_en,
+                      },
+                    })
+                  }
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir
+                </Button>
+              )}
+              <span className={`px-2.5 py-0.5 text-[10px] rounded-full font-medium border ${statusClass}`}>
+                {response.estado === "completed" ? "Completado" : "Borrador"}
+              </span>
+            </div>
           </div>
         </DialogHeader>
 

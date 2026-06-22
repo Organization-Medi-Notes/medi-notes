@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { FormularioClinico, CampoFormulario, CampoTipo } from "@/lib/types/formulario.types";
 import { useToast } from "@/hooks/use-toast";
 import { formularioService } from "@/lib/firebase/formularioService";
-import { ArrowUpDown, Plus, Trash2, Eye, Save, X } from "lucide-react";
+import { printFormularioClinico } from "@/lib/formulario-print";
+import { ArrowUpDown, Plus, Trash2, Eye, Save, X, Printer } from "lucide-react";
 
 interface BuilderModalProps {
   open: boolean;
@@ -235,6 +236,24 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
     if (!campo) return;
     const opciones = campo.opciones.filter((_, index) => index !== optionIndex);
     updateField(fieldId, { opciones });
+  };
+
+  const handlePrintDraft = () => {
+    try {
+      printFormularioClinico({
+        formulario: {
+          ...form,
+          nombre: form.nombre.trim() || "Formulario clínico",
+          descripcion: form.descripcion.trim(),
+          especialidad: form.especialidad.trim(),
+          estadoFormulario: form.estadoFormulario ?? "activo",
+        },
+      });
+      toast({ title: "Impresión iniciada", description: "Se abrió el diálogo de impresión." });
+    } catch (error) {
+      console.error("Error imprimiendo formulario desde el constructor:", error);
+      toast({ title: "Error", description: "No se pudo imprimir el formulario.", variant: "destructive" });
+    }
   };
 
   return (
@@ -526,6 +545,9 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
         <DialogFooter className="mt-6 flex flex-wrap gap-3">
           <Button variant="outline" className="h-11" onClick={() => onOpenChange(false)}>
             <X className="w-4 h-4 mr-2" />Cancelar
+          </Button>
+          <Button variant="outline" className="h-11" onClick={handlePrintDraft}>
+            <Printer className="w-4 h-4 mr-2" />Imprimir
           </Button>
           <Button variant="outline" className="h-11" onClick={() => handleSave("plantilla")} disabled={saving}>
             {saving ? "Guardando..." : <><Save className="w-4 h-4 mr-2" />Guardar como plantilla</>}
