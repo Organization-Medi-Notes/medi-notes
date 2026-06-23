@@ -18,6 +18,8 @@ import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion,
 import { db, auth } from "@/lib/firebase/config";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
+import { FormulariosPaciente } from "./components/FormulariosPaciente";
+import { VerFormularioModal } from "./components/VerFormularioModal";
 import jsPDF from "jspdf";
 
 interface PatientProfileModalProps {
@@ -279,6 +281,9 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [responseSuccess, setResponseSuccess] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [responseValidationError, setResponseValidationError] = useState<string | null>(null);
+  const [openViewResponseModal, setOpenViewResponseModal] = useState(false);
+  const [viewingResponse, setViewingResponse] = useState<FormularioClinicoRespuesta | null>(null);
+  const [viewingFormulario, setViewingFormulario] = useState<FormularioClinico | null>(null);
 
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -365,6 +370,24 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     setResponseError(null);
     setResponseSuccess(null);
     setResponseValidationError(null);
+  };
+
+  const handleEditDraftFromList = (formularioId: string) => {
+    const formulario = formularios.find((item) => item.id === formularioId);
+    if (formulario) {
+      handleSelectFormulario(formulario);
+    }
+  };
+
+  const handleViewResponseInDocuments = async (response: FormularioClinicoRespuesta) => {
+    try {
+      const form = await formularioService.getById(response.formularioId);
+      setViewingFormulario(form);
+      setViewingResponse(response);
+      setOpenViewResponseModal(true);
+    } catch (error) {
+      console.error("Error cargando formulario para visualización:", error);
+    }
   };
 
   const handleResponseFieldChange = (campoId: string, value: FormResponseValue) => {
@@ -508,9 +531,19 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       ...consultas.map(c => ({ id: c.id, tipo: "consulta" as const, fecha: c.fecha, data: c })),
       ...citas.map(c => ({ id: c.id, tipo: "cita" as const, fecha: c.fecha, data: c })),
       ...documentos.map((d) => ({ id: d.id ?? d.nombre, tipo: "documento" as const, fecha: d.creado_en, data: d })),
+      ...patientResponses.map((response) => ({
+        id: `form-${response.id ?? response.formularioId}`,
+        tipo: "documento" as const,
+        fecha: response.modificado_en ?? response.creado_en,
+        data: {
+          ...response,
+          subtipo: "formulario",
+          nombre: response.formularioNombre,
+        },
+      })),
     ];
     return events.sort((a, b) => getFechaMs(b.fecha) - getFechaMs(a.fecha));
-  }, [consultas, citas, documentos]);
+  }, [consultas, citas, documentos, patientResponses]);
 
   const filteredEvents = useMemo(() => {
     if (timelineFilter === "todo") return allEvents;
@@ -1045,10 +1078,51 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                   ))}
                 </div>
               )}
+
+              <div className="pt-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Formularios del paciente (como documentos clínicos)</p>
+                {patientResponses.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-24 text-gray-400 rounded-lg border border-dashed border-gray-200 bg-gray-50/50">
+                    <FileText className="w-6 h-6 mb-1 opacity-30" />
+                    <p className="text-sm">No hay formularios registrados para este paciente.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {patientResponses
+                      .slice()
+                      .sort((a, b) => getFechaMs(b.modificado_en ?? b.creado_en) - getFechaMs(a.modificado_en ?? a.creado_en))
+                      .map((response) => (
+                        <div key={response.id ?? response.formularioId} className="flex items-center gap-4 p-4 rounded-lg border border-gray-100 bg-gray-50/50">
+                          <FileText className="w-5 h-5 text-violet-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{response.formularioNombre}</p>
+                            <p className="text-xs text-gray-400">
+                              {response.estado === "completed" ? "Completado" : "Borrador"} · {formatFecha(response.modificado_en ?? response.creado_en)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-blue-600 hover:text-blue-700 shrink-0"
+                            onClick={() => handleViewResponseInDocuments(response)}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />Ver respuestas
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {/* PESTAÑA 5 — Formularios clínicos del paciente */}
             <TabsContent value="formularios" className="space-y-6">
+              <FormulariosPaciente
+                pacienteId={patient.id}
+                patientName={`${patient.nombre} ${patient.apellidos}`}
+                onEditDraft={handleEditDraftFromList}
+              />
+
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-lg font-semibold text-gray-900">Formularios clínicos</p>
@@ -1389,19 +1463,33 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                           {event.tipo === "documento" && (
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                {event.data.tipo === "imagen"
-                                  ? <Image className="w-4 h-4 text-violet-400 shrink-0" />
-                                  : <FileText className="w-4 h-4 text-violet-400 shrink-0" />
-                                }
+                                {event.data.subtipo === "formulario" ? (
+                                  <FileText className="w-4 h-4 text-violet-400 shrink-0" />
+                                ) : event.data.tipo === "imagen" ? (
+                                  <Image className="w-4 h-4 text-violet-400 shrink-0" />
+                                ) : (
+                                  <FileText className="w-4 h-4 text-violet-400 shrink-0" />
+                                )}
                                 <p className="text-sm font-medium text-gray-800 truncate">{event.data.nombre}</p>
                               </div>
-                              <Button
-                                variant="ghost" size="sm"
-                                className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
-                                onClick={() => window.open(event.data.url, "_blank")}
-                              >
-                                <ExternalLink className="w-3 h-3 mr-1" />Abrir
-                              </Button>
+                              {event.data.subtipo === "formulario" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
+                                  onClick={() => handleViewResponseInDocuments(event.data)}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />Ver respuestas
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  className="h-7 text-xs text-blue-600 hover:text-blue-700 shrink-0 px-2"
+                                  onClick={() => window.open(event.data.url, "_blank")}
+                                >
+                                  <ExternalLink className="w-3 h-3 mr-1" />Abrir
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1421,6 +1509,20 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
           onClose={() => setConsultaSeleccionada(null)}
         />
       )}
+
+      <VerFormularioModal
+        open={openViewResponseModal}
+        onOpenChange={(open) => {
+          setOpenViewResponseModal(open);
+          if (!open) {
+            setViewingResponse(null);
+            setViewingFormulario(null);
+          }
+        }}
+        formulario={viewingFormulario}
+        response={viewingResponse}
+        patientName={`${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim()}
+      />
     </>
   );
 }
