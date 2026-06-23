@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Search, Filter, MoreHorizontal, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -45,6 +52,7 @@ export default function PatientsPage() {
   const [patientToArchive, setPatientToArchive] = useState<any | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
+  const [etiquetaFiltro, setEtiquetaFiltro] = useState("todas");
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -118,12 +126,22 @@ export default function PatientsPage() {
     }
   }, [patientToArchive, loadPatients, handleCloseArchiveDialog]);
 
+  const etiquetasDisponibles = useMemo(() => {
+    const todas = patients.flatMap(p => Array.isArray(p.tags) ? p.tags : []);
+    return Array.from(new Set(todas)).filter(Boolean);
+  }, [patients]);
+
   const filteredPatients = patients
     .filter(p => mostrarArchivados ? p.activo === false : p.activo !== false)
     .filter(p =>
       p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .filter(p =>
+      etiquetaFiltro === "todas"
+        ? true
+        : Array.isArray(p.tags) && p.tags.includes(etiquetaFiltro)
     );
 
   const isArchiving = patientToArchive?.activo === true;
@@ -162,6 +180,23 @@ export default function PatientsPage() {
             />
             <span className="text-sm text-gray-600 whitespace-nowrap">Mostrar archivados</span>
           </div>
+
+          {etiquetasDisponibles.length > 0 && (
+            <Select value={etiquetaFiltro} onValueChange={setEtiquetaFiltro}>
+              <SelectTrigger className="h-11 w-[200px]">
+                <SelectValue placeholder="Todas las etiquetas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las etiquetas</SelectItem>
+                {etiquetasDisponibles.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Button variant="outline" className="h-11">
             <Filter className="w-4 h-4 mr-2" />
             Filtros
