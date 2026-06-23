@@ -14,6 +14,8 @@ interface FormCardProps {
 }
 
 export function FormCard({ form, onEdit, onDuplicate, onArchive, onDelete, onPreview }: FormCardProps) {
+  const isTemplate = form.estadoFormulario === "plantilla";
+
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer border-gray-200">
       <CardHeader className="p-6">
@@ -32,7 +34,10 @@ export function FormCard({ form, onEdit, onDuplicate, onArchive, onDelete, onPre
       </CardHeader>
       <CardContent className="grid gap-3 p-6 pt-0">
         <div className="flex flex-wrap gap-2">
-          <Badge className="text-xs bg-emerald-50 text-emerald-700">Activo</Badge>
+          <Badge className={`text-xs ${isTemplate ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+            {isTemplate ? "Plantilla" : "Activo"}
+          </Badge>
+          {isTemplate && <Badge className="text-xs bg-gray-100 text-gray-600">Pendiente de activación</Badge>}
           <Badge className="text-xs">{form.especialidad || "General"}</Badge>
           <Badge className="text-xs">{form.campos.length} campos</Badge>
         </div>

@@ -17,7 +17,7 @@ import { ArrowUpDown, Plus, Trash2, Eye, Save, X } from "lucide-react";
 
 interface BuilderModalProps {
   open: boolean;
-  mode: "create" | "edit" | "duplicate";
+  mode: "create" | "edit" | "duplicate" | "template";
   formToEdit: FormularioClinico | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -54,6 +54,7 @@ const buildInitialForm = (source?: FormularioClinico | null): FormularioClinico 
       campos: [],
       version: 1,
       activo: true,
+      estadoFormulario: "activo",
       creado_por: "",
       creado_en: {} as any,
       modificado_en: {} as any,
@@ -75,7 +76,7 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
 
   useEffect(() => {
     if (!open) return;
-    if (formToEdit && (mode === "edit" || mode === "duplicate")) {
+    if (formToEdit && (mode === "edit" || mode === "duplicate" || mode === "template")) {
       setForm(buildInitialForm(formToEdit));
       setSelectedFieldId(formToEdit.campos[0]?.id ?? null);
     } else {
@@ -144,7 +145,27 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
     return null;
   };
 
-  const handleSave = async () => {
+  const persistForm = async (estadoFormulario: "activo" | "plantilla") => {
+    const payload = {
+      nombre: form.nombre.trim(),
+      descripcion: form.descripcion.trim(),
+      especialidad: form.especialidad.trim(),
+      campos: form.campos.map((campo) => ({ ...campo })),
+      estadoFormulario,
+    };
+
+    if (mode === "edit" && form.id) {
+      await formularioService.update(form.id, {
+        ...payload,
+        version: form.version + 1,
+      });
+      return;
+    }
+
+    await formularioService.add(payload, estadoFormulario);
+  };
+
+  const handleSave = async (estadoFormulario: "activo" | "plantilla") => {
     const error = validateForm();
     if (error) {
       toast({ title: "Error", description: error, variant: "destructive" });
@@ -153,23 +174,19 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
 
     setSaving(true);
     try {
-      const payload = {
-        nombre: form.nombre.trim(),
-        descripcion: form.descripcion.trim(),
-        especialidad: form.especialidad.trim(),
-        campos: form.campos.map((campo) => ({ ...campo })),
-      };
+      await persistForm(estadoFormulario);
 
-      if (mode === "edit" && form.id) {
-        await formularioService.update(form.id, {
-          ...payload,
-          version: form.version + 1,
-        });
-        toast({ title: "Éxito", description: "Formulario actualizado correctamente." });
-      } else {
-        await formularioService.add(payload);
-        toast({ title: "Éxito", description: "Formulario guardado correctamente." });
-      }
+      toast({
+        title: "Éxito",
+        description:
+          estadoFormulario === "plantilla"
+            ? mode === "edit"
+              ? "Plantilla actualizada correctamente."
+              : "Plantilla guardada correctamente."
+            : mode === "edit"
+              ? "Formulario actualizado correctamente."
+              : "Formulario guardado correctamente.",
+      });
 
       onSaved();
       onOpenChange(false);
@@ -208,7 +225,7 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
         <DialogHeader>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <DialogTitle>{mode === "edit" ? "Editar formulario clínico" : mode === "duplicate" ? "Duplicar formulario" : "Nuevo formulario clínico"}</DialogTitle>
+              <DialogTitle>{mode === "edit" ? "Editar formulario clínico" : mode === "duplicate" ? "Duplicar formulario" : mode === "template" ? "Nuevo formulario desde plantilla" : "Nuevo formulario clínico"}</DialogTitle>
               <DialogDescription>
                 Use el constructor para crear un formulario estructurado y revise la vista previa antes de guardar.
               </DialogDescription>
@@ -227,6 +244,20 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
           </TabsList>
           <TabsContent value="constructor">
             <div className="grid gap-6 py-4">
+              {mode === "template" && formToEdit ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900">Trabajando desde una plantilla predefinida</p>
+                      <p className="mt-1 text-sm text-blue-700">
+                        Plantilla seleccionada: <span className="font-medium">{formToEdit.nombre}</span>
+                      </p>
+                    </div>
+                    <Badge className="bg-white text-blue-700 border border-blue-200">{formToEdit.campos.length} campos cargados</Badge>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-3">
                   <Label htmlFor="nombre">Nombre del formulario</Label>
@@ -451,14 +482,14 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
                               <div className="grid gap-2">
                                 {campo.opciones.map((option) => (
                                   <label key={option} className="inline-flex items-center gap-2 text-sm text-gray-700">
-                                    <Checkbox checked={false} readOnly />
+                                    <Checkbox checked={false} disabled />
                                     {option}
                                   </label>
                                 ))}
                               </div>
                             ) : campo.tipo === "checkbox" ? (
                               <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                                <Checkbox checked={false} readOnly />
+                                <Checkbox checked={false} disabled />
                                 <span>{campo.placeholder || campo.etiqueta}</span>
                               </label>
                             ) : (
@@ -478,8 +509,11 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
           <Button variant="outline" className="h-11" onClick={() => onOpenChange(false)}>
             <X className="w-4 h-4 mr-2" />Cancelar
           </Button>
-          <Button className="h-11 bg-primary hover:bg-primary-dark" onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando..." : <><Save className="w-4 h-4 mr-2" />Guardar</>}
+          <Button variant="outline" className="h-11" onClick={() => handleSave("plantilla")} disabled={saving}>
+            {saving ? "Guardando..." : <><Save className="w-4 h-4 mr-2" />Guardar como plantilla</>}
+          </Button>
+          <Button className="h-11 bg-primary hover:bg-primary-dark" onClick={() => handleSave("activo")} disabled={saving}>
+            {saving ? "Guardando..." : <><Save className="w-4 h-4 mr-2" />Guardar como activo</>}
           </Button>
         </DialogFooter>
       </DialogContent>

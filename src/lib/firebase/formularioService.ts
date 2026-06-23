@@ -13,6 +13,10 @@ import {
 import { auth, db } from "./config";
 import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
 
+function getFormularioEstado(formulario: FormularioClinico): "activo" | "plantilla" {
+  return formulario.estadoFormulario === "plantilla" ? "plantilla" : "activo";
+}
+
 function getMedicoId(): string {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("No hay un usuario autenticado.");
@@ -32,7 +36,7 @@ export const formularioService = {
       const snapshot = await getDocs(formulariosQuery);
       return snapshot.docs
         .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico))
-        .filter((formulario) => formulario.activo !== false)
+        .filter((formulario) => formulario.activo !== false && getFormularioEstado(formulario) === "activo")
         .sort((a, b) => {
           const timeA = a.modificado_en instanceof Object && 'toMillis' in a.modificado_en ? a.modificado_en.toMillis() : 0;
           const timeB = b.modificado_en instanceof Object && 'toMillis' in b.modificado_en ? b.modificado_en.toMillis() : 0;
@@ -40,6 +44,50 @@ export const formularioService = {
         });
     } catch (error) {
       console.error("Error cargando formularios clínicos:", error);
+      return [] as FormularioClinico[];
+    }
+  },
+
+  async getManageable() {
+    try {
+      const medicoId = getMedicoId();
+      const formulariosQuery = query(
+        collection(this.db, "formularios_clinicos"),
+        where("creado_por", "==", medicoId)
+      );
+      const snapshot = await getDocs(formulariosQuery);
+      return snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico))
+        .filter((formulario) => formulario.activo !== false)
+        .sort((a, b) => {
+          const timeA = a.modificado_en instanceof Object && 'toMillis' in a.modificado_en ? a.modificado_en.toMillis() : 0;
+          const timeB = b.modificado_en instanceof Object && 'toMillis' in b.modificado_en ? b.modificado_en.toMillis() : 0;
+          return timeB - timeA;
+        });
+    } catch (error) {
+      console.error("Error cargando formularios para gestión:", error);
+      return [] as FormularioClinico[];
+    }
+  },
+
+  async getTemplates() {
+    try {
+      const medicoId = getMedicoId();
+      const formulariosQuery = query(
+        collection(this.db, "formularios_clinicos"),
+        where("creado_por", "==", medicoId)
+      );
+      const snapshot = await getDocs(formulariosQuery);
+      return snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FormularioClinico))
+        .filter((formulario) => formulario.activo !== false && getFormularioEstado(formulario) === "plantilla")
+        .sort((a, b) => {
+          const timeA = a.modificado_en instanceof Object && 'toMillis' in a.modificado_en ? a.modificado_en.toMillis() : 0;
+          const timeB = b.modificado_en instanceof Object && 'toMillis' in b.modificado_en ? b.modificado_en.toMillis() : 0;
+          return timeB - timeA;
+        });
+    } catch (error) {
+      console.error("Error cargando plantillas clínicas:", error);
       return [] as FormularioClinico[];
     }
   },
@@ -72,11 +120,15 @@ export const formularioService = {
     return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as FormularioClinico) : null;
   },
 
-  async add(formulario: Omit<FormularioClinico, "id" | "version" | "activo" | "creado_por" | "creado_en" | "modificado_en">) {
+  async add(
+    formulario: Omit<FormularioClinico, "id" | "version" | "activo" | "creado_por" | "creado_en" | "modificado_en">,
+    estadoFormulario: "activo" | "plantilla" = "activo"
+  ) {
     return await addDoc(collection(this.db, "formularios_clinicos"), {
       ...formulario,
       version: 1,
       activo: true,
+      estadoFormulario,
       creado_por: getMedicoId(),
       creado_en: serverTimestamp(),
       modificado_en: serverTimestamp(),
@@ -99,6 +151,7 @@ export const formularioService = {
       campos: formulario.campos,
       version: 1,
       activo: true,
+      estadoFormulario: getFormularioEstado(formulario),
       creado_por: getMedicoId(),
       creado_en: serverTimestamp(),
       modificado_en: serverTimestamp(),
