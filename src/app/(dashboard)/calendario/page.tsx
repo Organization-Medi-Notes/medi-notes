@@ -14,6 +14,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { appointmentService } from "@/lib/firebase/db-service";
+import { formularioService } from "@/lib/firebase/formularioService";
+import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioService";
+import { FormularioClinico } from "@/lib/types/formulario.types";
+import { CitaFormulariosModal } from "./components/CitaFormulariosModal";
+import { CitaFormFiller } from "./components/CitaFormFiller";
+import { VerFormularioCitaModal } from "./components/VerFormularioCitaModal";
 
 type AppointmentForm = {
   paciente_nombre: string;
@@ -67,8 +73,18 @@ export default function CalendarPage() {
 
   const [openNewAppointment, setOpenNewAppointment] = useState(false);
   const [openEditAppointment, setOpenEditAppointment] = useState(false);
+  const [openCitaFormularios, setOpenCitaFormularios] = useState(false);
+  const [openFillForm, setOpenFillForm] = useState(false);
+  const [openViewForm, setOpenViewForm] = useState(false);
 
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+  const [selectedAppointmentForForms, setSelectedAppointmentForForms] = useState<any | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
+  const [availableFormularios, setAvailableFormularios] = useState<FormularioClinico[]>([]);
+  const [assignedForms, setAssignedForms] = useState<any[]>([]);
+  const [loadingFormularios, setLoadingFormularios] = useState(false);
+  const [savingFormulario, setSavingFormulario] = useState(false);
+
   const [newAppointment, setNewAppointment] =
     useState<AppointmentForm>(emptyAppointment);
   const [editAppointment, setEditAppointment] =
@@ -76,6 +92,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     loadAppointments();
+    loadFormularios();
   }, []);
 
   async function loadAppointments() {
@@ -87,6 +104,32 @@ export default function CalendarPage() {
       console.error("Error cargando citas:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadFormularios() {
+    try {
+      setLoadingFormularios(true);
+      const data = await formularioService.getAll();
+      setAvailableFormularios(data);
+    } catch (error) {
+      console.error("Error cargando formularios:", error);
+      setAvailableFormularios([]);
+    } finally {
+      setLoadingFormularios(false);
+    }
+  }
+
+  async function loadAssignedForms(citaId: string) {
+    try {
+      setLoadingFormularios(true);
+      const data = await respuestaFormularioService.getAssignedForms(citaId);
+      setAssignedForms(data);
+    } catch (error) {
+      console.error("Error cargando formularios asignados:", error);
+      setAssignedForms([]);
+    } finally {
+      setLoadingFormularios(false);
     }
   }
 
@@ -302,6 +345,87 @@ export default function CalendarPage() {
     setOpenEditAppointment(true);
   }
 
+  async function handleOpenAppointmentForms(apt: any) {
+    setSelectedAppointmentForForms(apt);
+    setOpenCitaFormularios(true);
+    await loadAssignedForms(apt.id);
+  }
+
+  async function handleAssignForm(formulario: FormularioClinico) {
+    if (!selectedAppointmentForForms?.id) return;
+
+    try {
+      setSavingFormulario(true);
+      const payload = {
+        citaId: selectedAppointmentForForms.id,
+        formularioId: formulario.id ?? "",
+        formularioNombre: formulario.nombre,
+        formularioEspecialidad: formulario.especialidad,
+        formularioVersion: formulario.version,
+        ...(selectedAppointmentForForms.paciente_id
+          ? { pacienteId: selectedAppointmentForForms.paciente_id }
+          : {}),
+      };
+
+      await respuestaFormularioService.assignFormToCita(payload);
+      await loadAssignedForms(selectedAppointmentForForms.id);
+    } catch (error) {
+      console.error("Error asignando formulario a cita:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
+  async function handleRemoveAssignedForm(assignmentId: string) {
+    try {
+      setSavingFormulario(true);
+      await respuestaFormularioService.deleteAssignedForm(assignmentId);
+      if (selectedAppointmentForForms?.id) {
+        await loadAssignedForms(selectedAppointmentForForms.id);
+      }
+    } catch (error) {
+      console.error("Error eliminando formulario asignado:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
+  function getAssignmentFormulario(assignment: any) {
+    if (!assignment?.formularioId) return null;
+    return availableFormularios.find((form) => form.id === assignment.formularioId) ?? null;
+  }
+
+  function handleFillForm(assignment: any) {
+    setSelectedAssignment(assignment);
+    setOpenFillForm(true);
+  }
+
+  function handleViewForm(assignment: any) {
+    setSelectedAssignment(assignment);
+    setOpenViewForm(true);
+  }
+
+  async function handleSaveFormResponse(values: Record<string, any>, status: "draft" | "completed") {
+    if (!selectedAssignment?.id) return;
+
+    try {
+      setSavingFormulario(true);
+      await respuestaFormularioService.updateAssignedForm(selectedAssignment.id, {
+        respuestas: values,
+        estado: status,
+      });
+      if (selectedAppointmentForForms?.id) {
+        await loadAssignedForms(selectedAppointmentForForms.id);
+      }
+      setOpenFillForm(false);
+      setOpenViewForm(status === "completed");
+    } catch (error) {
+      console.error("Error guardando respuestas de formulario:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
   async function handleUpdateAppointment() {
     if (!selectedAppointment?.id) {
       setValidationMessage("La cita no tiene identificador. No se puede actualizar.");
@@ -469,6 +593,47 @@ export default function CalendarPage() {
         />
       )}
 
+      <CitaFormulariosModal
+        open={openCitaFormularios}
+        onOpenChange={(open) => {
+          setOpenCitaFormularios(open);
+          if (!open) {
+            setSelectedAppointmentForForms(null);
+            setAssignedForms([]);
+          }
+        }}
+        appointment={selectedAppointmentForForms}
+        assignedForms={assignedForms}
+        availableForms={availableFormularios}
+        onAssignForm={handleAssignForm}
+        onFillForm={handleFillForm}
+        onViewForm={handleViewForm}
+        onRemoveAssignment={handleRemoveAssignedForm}
+        loading={loadingFormularios || savingFormulario}
+      />
+
+      <CitaFormFiller
+        open={openFillForm}
+        onOpenChange={(open) => {
+          setOpenFillForm(open);
+          if (!open) setSelectedAssignment(null);
+        }}
+        formulario={getAssignmentFormulario(selectedAssignment)}
+        assignment={selectedAssignment}
+        onSave={handleSaveFormResponse}
+        saving={savingFormulario}
+      />
+
+      <VerFormularioCitaModal
+        open={openViewForm}
+        onOpenChange={(open) => {
+          setOpenViewForm(open);
+          if (!open) setSelectedAssignment(null);
+        }}
+        formulario={getAssignmentFormulario(selectedAssignment)}
+        assignment={selectedAssignment}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
         <div className="space-y-6">
           <div className="card-notion p-5 flex justify-center">
@@ -568,10 +733,11 @@ export default function CalendarPage() {
                 obtenerHorariosLaborales={obtenerHorariosLaborales}
                 obtenerCitaEnHorario={obtenerCitaEnHorario}
                 onEdit={handleOpenEditAppointment}
+                onForms={handleOpenAppointmentForms}
                 onCreateAppointment={handleCreateFromSlot}
                 getAppointmentSlotClass={getAppointmentSlotClass}
                 showAllAvailability={showAllAvailability}
-                            />
+              />
             ) : viewMode === "mes" ? (
               <MonthView
                 appointments={appointments}
@@ -579,6 +745,7 @@ export default function CalendarPage() {
                 obtenerFechaCita={obtenerFechaCita}
                 getBadgeClass={getBadgeClass}
                 onEdit={handleOpenEditAppointment}
+                onForms={handleOpenAppointmentForms}
               />
             ) : selectedDayApts.length === 0 ? (
               <EmptyState />
@@ -590,6 +757,7 @@ export default function CalendarPage() {
                     apt={apt}
                     getBadgeClass={getBadgeClass}
                     onEdit={() => handleOpenEditAppointment(apt)}
+                    onForms={() => handleOpenAppointmentForms(apt)}
                   />
                 ))}
               </div>
@@ -823,28 +991,43 @@ function AppointmentModal({
   );
 }
 
-function AppointmentCard({ apt, getBadgeClass, onEdit }: any) {
+function AppointmentCard({ apt, getBadgeClass, onEdit, onForms }: any) {
   return (
-    <button
-      type="button"
-      onClick={onEdit}
-      className="w-full flex items-center gap-5 p-5 rounded-xl border border-gray-100 hover:bg-gray-50 transition text-left"
-    >
-      <div className="text-center w-20 rounded-xl border border-gray-100 p-3">
-        <p className="text-sm font-bold text-gray-900">{apt.hora_inicio}</p>
+    <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm">
+      <div className="flex items-center gap-5 p-5 text-left">
+        <div className="text-center w-20 rounded-xl border border-gray-100 p-3">
+          <p className="text-sm font-bold text-gray-900">{apt.hora_inicio}</p>
+        </div>
+
+        <div className="flex-1">
+          <h4 className="font-semibold text-gray-900">{apt.paciente_nombre}</h4>
+          <p className="text-sm text-gray-500">{apt.tipo_consulta}</p>
+          {Number(apt.monto) > 0 && (
+            <p className="text-sm text-gray-500">Monto: {formatCurrency(apt.monto)}</p>
+          )}
+          {apt.notas && <p className="text-sm text-gray-400 mt-1">{apt.notas}</p>}
+        </div>
+
+        <Badge className={getBadgeClass(apt.estado)}>{apt.estado}</Badge>
       </div>
 
-      <div className="flex-1">
-        <h4 className="font-semibold text-gray-900">{apt.paciente_nombre}</h4>
-        <p className="text-sm text-gray-500">{apt.tipo_consulta}</p>
-        {Number(apt.monto) > 0 && (
-          <p className="text-sm text-gray-500">Monto: {formatCurrency(apt.monto)}</p>
-        )}
-        {apt.notas && <p className="text-sm text-gray-400 mt-1">{apt.notas}</p>}
+      <div className="border-t border-gray-100 px-5 py-3 bg-gray-50 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+        >
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={onForms}
+          className="rounded-lg border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+        >
+          Formularios
+        </button>
       </div>
-
-      <Badge className={getBadgeClass(apt.estado)}>{apt.estado}</Badge>
-    </button>
+    </div>
   );
 }
 
@@ -853,6 +1036,7 @@ function WeekView({
   obtenerHorariosLaborales,
   obtenerCitaEnHorario,
   onEdit,
+  onForms,
   onCreateAppointment,
   getAppointmentSlotClass,
   showAllAvailability,
@@ -902,18 +1086,25 @@ function WeekView({
 
               <div className="space-y-2">
                 {ocupadosSlots.map((cita: any) => (
-                  <button
-                    type="button"
-                    key={cita.id}
-                    onClick={() => onEdit(cita)}
-                    className={getAppointmentSlotClass(cita.estado)}
-                  >
-                    <p className="text-xs font-bold">{cita.hora_inicio}</p>
-                    <p className="text-xs">{cita.paciente_nombre}</p>
-                    <p className="text-[11px] opacity-70">
-                      {cita.tipo_consulta}
-                    </p>
-                  </button>
+                  <div key={cita.id} className={getAppointmentSlotClass(cita.estado)}>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => onEdit(cita)}
+                    >
+                      <p className="text-xs font-bold">{cita.hora_inicio}</p>
+                      <p className="text-xs">{cita.paciente_nombre}</p>
+                      <p className="text-[11px] opacity-70">
+                        {cita.tipo_consulta}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onForms(cita)}
+                      className="mt-2 w-full rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+                    >
+                      Formularios
+                    </button>
+                  </div>
                 ))}
 
                 {libresVisibles.map((hora: string) => (
@@ -943,7 +1134,7 @@ function WeekView({
 }
 
 
-function MonthView({ appointments, month, obtenerFechaCita, getBadgeClass, onEdit }: any) {
+function MonthView({ appointments, month, obtenerFechaCita, getBadgeClass, onEdit, onForms }: any) {
   const monthAppointments = appointments
     .filter((apt: any) => {
       const fechaCita = obtenerFechaCita(apt.fecha);
@@ -969,46 +1160,58 @@ function MonthView({ appointments, month, obtenerFechaCita, getBadgeClass, onEdi
         const fechaCita = obtenerFechaCita(apt.fecha);
 
         return (
-          <button
-            type="button"
+          <div
             key={apt.id || idx}
-            onClick={() => onEdit(apt)}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition text-left"
+            className="w-full rounded-xl border border-gray-100 bg-white"
           >
-            <div className="text-center w-20">
-              <p className="text-xs text-gray-400 capitalize">
-                {fechaCita.toLocaleDateString("es-ES", { weekday: "short" })}
-              </p>
-              <p className="text-lg font-bold text-gray-900">
-                {fechaCita.getDate()}
-              </p>
-            </div>
-
-            <div className="text-center w-16">
-              <p className="text-sm font-bold text-gray-900">
-                {apt.hora_inicio}
-              </p>
-            </div>
-
-            <div className="flex-1">
-              <h4 className="font-semibold">{apt.paciente_nombre}</h4>
-              <p className="text-xs text-gray-500">{apt.tipo_consulta}</p>
-
-              {Number(apt.monto) > 0 && (
-                <p className="text-xs text-gray-500">
-                  Monto: {formatCurrency(apt.monto)}
+            <div
+              className="w-full flex items-center gap-4 p-4 text-left cursor-pointer hover:bg-gray-50"
+              onClick={() => onEdit(apt)}
+            >
+              <div className="text-center w-20">
+                <p className="text-xs text-gray-400 capitalize">
+                  {fechaCita.toLocaleDateString("es-ES", { weekday: "short" })}
                 </p>
-              )}
+                <p className="text-lg font-bold text-gray-900">
+                  {fechaCita.getDate()}
+                </p>
+              </div>
 
-              {apt.notas && (
-                <p className="text-xs text-gray-400 mt-1">{apt.notas}</p>
-              )}
+              <div className="text-center w-16">
+                <p className="text-sm font-bold text-gray-900">
+                  {apt.hora_inicio}
+                </p>
+              </div>
+
+              <div className="flex-1">
+                <h4 className="font-semibold">{apt.paciente_nombre}</h4>
+                <p className="text-xs text-gray-500">{apt.tipo_consulta}</p>
+
+                {Number(apt.monto) > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Monto: {formatCurrency(apt.monto)}
+                  </p>
+                )}
+
+                {apt.notas && (
+                  <p className="text-xs text-gray-400 mt-1">{apt.notas}</p>
+                )}
+              </div>
+
+              <Badge className={getBadgeClass(apt.estado)}>
+                {apt.estado}
+              </Badge>
             </div>
-
-            <Badge className={getBadgeClass(apt.estado)}>
-              {apt.estado}
-            </Badge>
-          </button>
+            <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => onForms(apt)}
+                className="rounded-lg border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+              >
+                Formularios
+              </button>
+            </div>
+          </div>
         );
       })}
     </div>
