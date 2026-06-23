@@ -10,6 +10,7 @@ import { FormPreviewModal } from "./components/FormPreviewModal";
 import { FormCard } from "./components/FormCard";
 import { UseTemplateModal } from "./components/UseTemplateModal";
 import { FormVersionHistoryModal } from "./components/FormVersionHistoryModal";
+import { printFormularioClinico } from "@/lib/formulario-print";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { auth, db } from "@/lib/firebase/config";
 import { FormularioClinico } from "@/lib/types/formulario.types";
@@ -172,6 +173,16 @@ export default function FormulariosPage() {
     setPreviewForm(formulario);
     setIsPreviewOpen(true);
   }, []);
+
+  const handlePrint = useCallback((formulario: FormularioClinico) => {
+    try {
+      printFormularioClinico({ formulario });
+      toast({ title: "Impresión iniciada", description: "Se abrió el diálogo de impresión." });
+    } catch (error) {
+      console.error("Error imprimiendo formulario:", error);
+      toast({ title: "Error", description: "No se pudo imprimir el formulario.", variant: "destructive" });
+    }
+  }, [toast]);
 
   const handleUseTemplate = useCallback((formulario: FormularioClinico) => {
     setBuilderMode("template");
@@ -401,6 +412,7 @@ export default function FormulariosPage() {
                   onEdit={!showArchived ? handleOpenEdit : undefined}
                   onHistory={handleOpenHistory}
                   onDuplicate={!showArchived ? handleOpenDuplicate : undefined}
+                  onPrint={handlePrint}
                   onArchive={!showArchived ? handleArchive : undefined}
                   onDelete={showArchived ? handleDelete : undefined}
                   onPreview={handlePreview}
@@ -454,7 +466,7 @@ export default function FormulariosPage() {
         onRestore={handleRestoreVersion}
       />
 
-      <FormPreviewModal open={isPreviewOpen} form={previewForm} onOpenChange={setIsPreviewOpen} />
+      <FormPreviewModal open={isPreviewOpen} form={previewForm} onOpenChange={setIsPreviewOpen} onPrint={handlePrint} />
     </div>
   );
 }

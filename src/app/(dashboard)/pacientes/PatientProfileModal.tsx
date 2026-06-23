@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye, X, Plus, Download, Image } from "lucide-react";
+import { Loader2, FileText, Calendar, Upload, ExternalLink, Paperclip, ClipboardList, Eye, X, Plus, Download, Image, Printer } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion,
 import { db, auth } from "@/lib/firebase/config";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
+import { printFormularioClinico } from "@/lib/formulario-print";
 import { FormulariosPaciente } from "./components/FormulariosPaciente";
 import { VerFormularioModal } from "./components/VerFormularioModal";
 import jsPDF from "jspdf";
@@ -1206,6 +1207,25 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                           <p className="text-sm text-gray-500">{selectedFormulario.descripcion || "Complete los campos para este paciente."}</p>
                         </div>
                         <div className="flex gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              printFormularioClinico({
+                                formulario: selectedFormulario,
+                                patientName: patient ? `${patient.nombre} ${patient.apellidos}` : undefined,
+                                response: {
+                                  respuestas: responseValues,
+                                  estado: responseStatus,
+                                  doctorId: auth.currentUser?.uid,
+                                  fecha: new Date(),
+                                },
+                              })
+                            }
+                          >
+                            <Printer className="w-4 h-4 mr-2" />
+                            Imprimir
+                          </Button>
                           <Button
                             size="sm"
                             variant={responseStatus === "draft" ? "default" : "outline"}

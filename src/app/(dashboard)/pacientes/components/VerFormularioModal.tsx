@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
+import { printFormularioClinico } from "@/lib/formulario-print";
+import { Printer } from "lucide-react";
 
 interface VerFormularioModalProps {
   open: boolean;
@@ -106,7 +109,29 @@ export function VerFormularioModal({ open, onOpenChange, formulario, response, p
                 Información clínica registrada previamente para este paciente.
               </DialogDescription>
             </div>
-            <Badge className={statusClass}>{response.estado === "completed" ? "Completado" : "Borrador"}</Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  printFormularioClinico({
+                    formulario,
+                    patientName,
+                    response: {
+                      respuestas: response.respuestas,
+                      estado: response.estado,
+                      doctorId: response.doctorId,
+                      fecha: response.modificado_en ?? response.creado_en,
+                    },
+                  })
+                }
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir
+              </Button>
+              <Badge className={statusClass}>{response.estado === "completed" ? "Completado" : "Borrador"}</Badge>
+            </div>
           </div>
         </DialogHeader>
 

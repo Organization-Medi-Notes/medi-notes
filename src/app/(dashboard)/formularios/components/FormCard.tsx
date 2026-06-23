@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Edit, Archive, Eye, FileText, History, Trash2 } from "lucide-react";
+import { Copy, Edit, Archive, Eye, FileText, History, Trash2, Printer } from "lucide-react";
 import { FormularioClinico } from "@/lib/types/formulario.types";
 
 interface FormCardProps {
@@ -11,10 +11,11 @@ interface FormCardProps {
   onDuplicate?: (form: FormularioClinico) => void;
   onArchive?: (form: FormularioClinico) => void;
   onDelete?: (form: FormularioClinico) => void;
+  onPrint?: (form: FormularioClinico) => void;
   onPreview: (form: FormularioClinico) => void;
 }
 
-export function FormCard({ form, onEdit, onHistory, onDuplicate, onArchive, onDelete, onPreview }: FormCardProps) {
+export function FormCard({ form, onEdit, onHistory, onDuplicate, onArchive, onDelete, onPrint, onPreview }: FormCardProps) {
   const isTemplate = form.estadoFormulario === "plantilla";
 
   return (
@@ -65,6 +66,12 @@ export function FormCard({ form, onEdit, onHistory, onDuplicate, onArchive, onDe
             <Button variant="ghost" size="sm" onClick={() => onDuplicate(form)}>
               <Copy className="w-4 h-4 mr-2" />
               Duplicar
+            </Button>
+          )}
+          {onPrint && (
+            <Button variant="ghost" size="sm" onClick={() => onPrint(form)}>
+              <Printer className="w-4 h-4 mr-2" />
+              Imprimir
             </Button>
           )}
           {onArchive && (
