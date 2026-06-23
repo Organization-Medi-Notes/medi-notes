@@ -26,6 +26,7 @@ import { appointmentService } from "@/lib/firebase/db-service";
 
 type AppointmentForm = {
   paciente_nombre: string;
+  paciente_correo: string;
   tipo_consulta: string;
   fecha: string;
   hora_inicio: string;
@@ -37,6 +38,7 @@ type AppointmentForm = {
 
 const emptyAppointment: AppointmentForm = {
   paciente_nombre: "",
+  paciente_correo: "",
   tipo_consulta: "Primera cita",
   fecha: "",
   hora_inicio: "",
@@ -62,6 +64,33 @@ function generarHorarios() {
   }
 
   return horarios;
+}
+
+function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
+  const correoGuardado = appointment.paciente_correo || "";
+
+  const correoDestino = window.prompt(
+    "¿A qué correo desea enviar la notificación de la cita?",
+    correoGuardado
+  );
+
+  if (!correoDestino?.trim()) return;
+
+  const asunto = "Confirmación de cita médica";
+  const cuerpo = `Hola ${appointment.paciente_nombre},
+
+Le confirmamos su cita médica para el día ${appointment.fecha} a las ${appointment.hora_inicio}.
+
+Tipo de consulta: ${appointment.tipo_consulta}
+
+Saludos.`;
+
+const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+  correoDestino.trim()
+)}&su=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+
+window.open(gmailUrl, "_blank");
+  
 }
 
 export default function AppointmentsPage() {
@@ -191,6 +220,9 @@ export default function AppointmentsPage() {
 
       setValidationMessage("");
       setOpenNewAppointment(false);
+
+      abrirCorreoNotificacionCita(newAppointment);
+
       setNewAppointment(emptyAppointment);
     } catch (error) {
       console.error("Error creando cita:", error);
@@ -207,6 +239,7 @@ export default function AppointmentsPage() {
 
     setEditAppointment({
       paciente_nombre: apt.paciente_nombre || "",
+      paciente_correo: apt.paciente_correo || apt.correo || apt.email || "",
       tipo_consulta: apt.tipo_consulta || "Primera cita",
       fecha: formatInputDate(apt.fecha),
       hora_inicio: apt.hora_inicio || "",
@@ -505,6 +538,27 @@ export default function AppointmentsPage() {
 
                         <button
                           type="button"
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-50"
+                          onClick={() => {
+                            setActionsOpenId(null);
+                            abrirCorreoNotificacionCita({
+                              paciente_nombre: apt.paciente_nombre || "",
+                              paciente_correo: apt.paciente_correo || apt.correo || apt.email || "",
+                              tipo_consulta: apt.tipo_consulta || "Consulta",
+                              fecha: formatInputDate(apt.fecha),
+                              hora_inicio: apt.hora_inicio || "",
+                              hora_fin: apt.hora_fin || "",
+                              estado: apt.estado || "programada",
+                              monto: Number(apt.monto || 0),
+                              notas: apt.notas || "",
+                            });
+                          }}
+                        >
+                          Enviar correo
+                        </button>
+
+                        <button
+                          type="button"
                           className="w-full text-left px-3 py-2 rounded-lg text-sm text-red-700 hover:bg-red-50"
                           onClick={() => handleDeleteAppointment(apt)}
                         >
@@ -601,6 +655,18 @@ function AppointmentModal({
               setAppointment({
                 ...appointment,
                 paciente_nombre: e.target.value,
+              })
+            }
+          />
+
+          <Input
+            type="email"
+            placeholder="Correo del paciente"
+            value={appointment.paciente_correo}
+            onChange={(e) =>
+              setAppointment({
+                ...appointment,
+                paciente_correo: e.target.value,
               })
             }
           />
