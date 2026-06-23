@@ -62,6 +62,8 @@ const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
             apellidos: "Solano",
             especialidad: "Pediatra",
             cedula_profesional: "MED-88291-CR",
+            email: auth.currentUser?.email ?? "",
+            telefono: "",
           });
         }
       } catch (error) {
@@ -347,6 +349,30 @@ const handleRoleChange = async (userId: string, newRole: string) => {
                       }
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="space-y-2">
+    <Label htmlFor="email">Correo electrónico</Label>
+    <Input
+      id="email"
+      type="email"
+      value={profile.email || ""}
+      disabled
+      className="bg-muted"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label htmlFor="telefono">Teléfono</Label>
+    <Input
+      id="telefono"
+      value={profile.telefono || ""}
+      onChange={(e) =>
+        setProfile({ ...profile, telefono: e.target.value })
+      }
+      placeholder="Ej: 8703-9865"
+    />
+  </div>
+</div>
                 </div>
               </div>
 
