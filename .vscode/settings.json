@@ -1,0 +1,6 @@
+{
+    "npm.enableRunFromFolder": true,
+    "npm.scriptExplorerAction": "run",
+    "chat.tools.compressOutput.enabled": true,
+    "npm.runSilent": true
+}
