@@ -12,8 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, Timestamp, addDoc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase/config";
+import { formularioService } from "@/lib/firebase/formularioService";
+import { FormularioClinico, FormularioClinicoRespuesta } from "@/lib/types/formulario.types";
 import jsPDF from "jspdf";
 
 interface PatientProfileModalProps {
@@ -57,6 +61,10 @@ interface NuevaConsultaForm {
   indicaciones: string;
   notasClinicas: string;
 }
+
+type FormResponseValue = string | boolean | string[];
+
+type FormResponseEstado = "draft" | "completed";
 
 type TimelineFilter = "todo" | "consulta" | "cita" | "documento";
 
@@ -260,6 +268,18 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   const [consultaValidationError, setConsultaValidationError] = useState<string | null>(null);
   const [consultaSeleccionada, setConsultaSeleccionada] = useState<Consulta | null>(null);
 
+  const [formularios, setFormularios] = useState<FormularioClinico[]>([]);
+  const [loadingFormularios, setLoadingFormularios] = useState(false);
+  const [patientResponses, setPatientResponses] = useState<FormularioClinicoRespuesta[]>([]);
+  const [selectedFormulario, setSelectedFormulario] = useState<FormularioClinico | null>(null);
+  const [selectedResponse, setSelectedResponse] = useState<FormularioClinicoRespuesta | null>(null);
+  const [responseValues, setResponseValues] = useState<Record<string, FormResponseValue>>({});
+  const [responseStatus, setResponseStatus] = useState<FormResponseEstado>("draft");
+  const [savingResponse, setSavingResponse] = useState(false);
+  const [responseSuccess, setResponseSuccess] = useState<string | null>(null);
+  const [responseError, setResponseError] = useState<string | null>(null);
+  const [responseValidationError, setResponseValidationError] = useState<string | null>(null);
+
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [savingTag, setSavingTag] = useState(false);
@@ -284,6 +304,128 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
       setDocumentos([]);
     } finally {
       setLoadingDocumentos(false);
+    }
+  };
+
+  const fetchFormularios = async () => {
+    setLoadingFormularios(true);
+    try {
+      const activeForms = await formularioService.getAll();
+      setFormularios(activeForms);
+    } catch (error) {
+      console.error("Error cargando formularios clínicos:", error);
+      setFormularios([]);
+    } finally {
+      setLoadingFormularios(false);
+    }
+  };
+
+  const fetchPatientResponses = async (pacienteId: string) => {
+    try {
+      const responses = await formularioService.getPatientResponses(pacienteId);
+      setPatientResponses(responses);
+    } catch (error) {
+      console.error("Error cargando respuestas de formularios para el paciente:", error);
+      setPatientResponses([]);
+    }
+  };
+
+  const buildResponseValues = (
+    formulario: FormularioClinico,
+    response?: FormularioClinicoRespuesta
+  ): Record<string, FormResponseValue> => {
+    const values: Record<string, FormResponseValue> = {};
+    formulario.campos.forEach((campo) => {
+      const existing = response?.respuestas?.[campo.id];
+      if (existing !== undefined) {
+        values[campo.id] = existing as FormResponseValue;
+        return;
+      }
+
+      switch (campo.tipo) {
+        case "checkbox":
+          values[campo.id] = false;
+          break;
+        case "multiselect":
+          values[campo.id] = [];
+          break;
+        default:
+          values[campo.id] = "";
+      }
+    });
+    return values;
+  };
+
+  const handleSelectFormulario = (formulario: FormularioClinico) => {
+    const existing = patientResponses.find((response) => response.formularioId === formulario.id);
+    setSelectedFormulario(formulario);
+    setSelectedResponse(existing || null);
+    setResponseValues(buildResponseValues(formulario, existing || undefined));
+    setResponseStatus(existing?.estado ?? "draft");
+    setResponseError(null);
+    setResponseSuccess(null);
+    setResponseValidationError(null);
+  };
+
+  const handleResponseFieldChange = (campoId: string, value: FormResponseValue) => {
+    setResponseValues((prev) => ({
+      ...prev,
+      [campoId]: value,
+    }));
+  };
+
+  const handleSaveResponse = async (status: FormResponseEstado) => {
+    if (!patient?.id || !selectedFormulario) return;
+    setResponseValidationError(null);
+    setResponseError(null);
+    setResponseSuccess(null);
+
+    const requiredMissing = selectedFormulario.campos.some((campo) => {
+      if (!campo.requerido) return false;
+      const value = responseValues[campo.id];
+      if (campo.tipo === "checkbox") return value !== true;
+      if (campo.tipo === "multiselect") return Array.isArray(value) && value.length === 0;
+      return value === "" || value === undefined || value === null;
+    });
+
+    if (requiredMissing) {
+      setResponseValidationError("Por favor complete todos los campos obligatorios antes de guardar.");
+      return;
+    }
+
+    setSavingResponse(true);
+    try {
+      const payload = {
+        pacienteId: patient.id,
+        formularioId: selectedFormulario.id ?? "",
+        formularioNombre: selectedFormulario.nombre,
+        formularioEspecialidad: selectedFormulario.especialidad,
+        formularioVersion: selectedFormulario.version,
+        doctorId: auth.currentUser?.uid ?? "",
+        estado: status,
+        respuestas: responseValues,
+      };
+
+      if (selectedResponse?.id) {
+        await formularioService.updatePatientResponse(selectedResponse.id, {
+          respuestas: responseValues,
+          estado: status,
+        });
+        setResponseSuccess("Respuesta actualizada correctamente.");
+      } else {
+        await formularioService.savePatientResponse(payload);
+        setResponseSuccess("Respuesta guardada correctamente.");
+      }
+
+      await fetchPatientResponses(patient.id);
+      const savedResponse = await formularioService.getPatientResponse(patient.id, selectedFormulario.id ?? "");
+      setSelectedResponse(savedResponse);
+      setResponseStatus(status);
+    } catch (error) {
+      console.error("Error guardando respuesta del formulario:", error);
+      setResponseError("No se pudo guardar la respuesta. Intentá de nuevo.");
+    } finally {
+      setSavingResponse(false);
     }
   };
 
@@ -350,6 +492,15 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
     fetchConsultas();
     fetchCitas();
     fetchDocumentos(patient.id);
+    fetchFormularios();
+    fetchPatientResponses(patient.id);
+    setSelectedFormulario(null);
+    setSelectedResponse(null);
+    setResponseValues({});
+    setResponseStatus("draft");
+    setResponseError(null);
+    setResponseSuccess(null);
+    setResponseValidationError(null);
   }, [patient?.id, isOpen]);
 
   const allEvents = useMemo<TimelineEvent[]>(() => {
@@ -650,6 +801,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               <TabsTrigger value="historial">Consultas</TabsTrigger>
               <TabsTrigger value="citas">Citas</TabsTrigger>
               <TabsTrigger value="documentos">Documentos</TabsTrigger>
+              <TabsTrigger value="formularios">Formularios</TabsTrigger>
               <TabsTrigger value="nueva-consulta">Nueva consulta</TabsTrigger>
               <TabsTrigger value="timeline">Línea de tiempo</TabsTrigger>
             </TabsList>
@@ -895,7 +1047,242 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
               )}
             </TabsContent>
 
-            {/* PESTAÑA 5 — Nueva consulta — sin tocar */}
+            {/* PESTAÑA 5 — Formularios clínicos del paciente */}
+            <TabsContent value="formularios" className="space-y-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-gray-900">Formularios clínicos</p>
+                  <p className="text-sm text-gray-500 mt-1">Asocie y complete formularios clínicos a este paciente.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                    Formularios activos: {formularios.length}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                    Respuestas guardadas: {patientResponses.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <p className="text-sm font-medium text-gray-700 mb-3">Seleccionar formulario</p>
+                    {loadingFormularios ? (
+                      <div className="flex items-center justify-center h-24 text-gray-400">
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Cargando formularios...
+                      </div>
+                    ) : formularios.length === 0 ? (
+                      <p className="text-sm text-gray-500">No hay formularios clínicos disponibles.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {formularios.map((formulario) => {
+                          const existing = patientResponses.find((response) => response.formularioId === formulario.id);
+                          return (
+                            <button
+                              key={formulario.id}
+                              type="button"
+                              onClick={() => handleSelectFormulario(formulario)}
+                              className={`w-full rounded-xl border px-4 py-3 text-left transition-all ${
+                                selectedFormulario?.id === formulario.id
+                                  ? "border-primary bg-primary/10"
+                                  : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-gray-900">{formulario.nombre}</span>
+                                {existing && (
+                                  <span className="text-[11px] rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+                                    {existing.estado === "completed" ? "Completado" : "Borrador"}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{formulario.descripcion || "Sin descripción"}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedResponse && (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-sm font-medium text-gray-700 mb-3">Última respuesta</p>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Estado</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{selectedResponse.estado}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Guardado</span>
+                          <span className="text-slate-500 text-xs">{formatFecha(selectedResponse.creado_en)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-6">
+                  {selectedFormulario ? (
+                    <>
+                      <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">{selectedFormulario.nombre}</h3>
+                          <p className="text-sm text-gray-500">{selectedFormulario.descripcion || "Complete los campos para este paciente."}</p>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant={responseStatus === "draft" ? "default" : "outline"}
+                            onClick={() => setResponseStatus("draft")}
+                          >
+                            Guardar borrador
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={responseStatus === "completed" ? "default" : "outline"}
+                            onClick={() => setResponseStatus("completed")}
+                          >
+                            Marcar completado
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {selectedFormulario.campos
+                          .sort((a, b) => a.orden - b.orden)
+                          .map((campo) => {
+                            const value = responseValues[campo.id];
+                            const required = campo.requerido;
+
+                            if (campo.tipo === "textarea") {
+                              return (
+                                <div key={campo.id} className="space-y-2">
+                                  <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                    {campo.etiqueta}
+                                    {required && <span className="text-rose-500">*</span>}
+                                  </label>
+                                  <Textarea
+                                    value={String(value ?? "")}
+                                    onChange={(e) => handleResponseFieldChange(campo.id, e.target.value)}
+                                    placeholder={campo.placeholder}
+                                    className="min-h-[120px] border-gray-200 focus:ring-primary rounded-lg"
+                                  />
+                                </div>
+                              );
+                            }
+
+                            if (campo.tipo === "select" || campo.tipo === "number" || campo.tipo === "date" || campo.tipo === "text" || campo.tipo === "diagnostico" || campo.tipo === "medicamento") {
+                              return (
+                                <div key={campo.id} className="space-y-2">
+                                  <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                    {campo.etiqueta}
+                                    {required && <span className="text-rose-500">*</span>}
+                                  </label>
+                                  {campo.tipo === "select" ? (
+                                    <Select
+                                      value={String(value ?? "")}
+                                      onValueChange={(val) => handleResponseFieldChange(campo.id, val)}
+                                    >
+                                      <SelectTrigger className="border-gray-200 rounded-lg h-11">
+                                        <SelectValue placeholder={campo.placeholder || "Seleccione una opción"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {campo.opciones.map((option) => (
+                                          <SelectItem key={option} value={option}>
+                                            {option}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Input
+                                      type={campo.tipo === "number" ? "number" : campo.tipo === "date" ? "date" : "text"}
+                                      value={String(value ?? "")}
+                                      onChange={(e) => handleResponseFieldChange(campo.id, campo.tipo === "number" ? Number(e.target.value) : e.target.value)}
+                                      placeholder={campo.placeholder}
+                                      className="border-gray-200 focus:ring-primary rounded-lg h-11"
+                                    />
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            if (campo.tipo === "checkbox") {
+                              return (
+                                <label key={campo.id} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                  <Checkbox
+                                    checked={Boolean(value)}
+                                    onCheckedChange={(checked) => handleResponseFieldChange(campo.id, Boolean(checked))}
+                                  />
+                                  <span>{campo.etiqueta}</span>
+                                </label>
+                              );
+                            }
+
+                            if (campo.tipo === "multiselect") {
+                              const selectedValues = Array.isArray(value) ? value : [];
+                              return (
+                                <div key={campo.id} className="space-y-2">
+                                  <p className="text-sm font-medium text-gray-700">{campo.etiqueta}{required && <span className="text-rose-500">*</span>}</p>
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    {campo.opciones.map((option) => (
+                                      <label key={option} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                        <Checkbox
+                                          checked={selectedValues.includes(option)}
+                                          onCheckedChange={(checked) => {
+                                            const nextValues = checked
+                                              ? [...selectedValues, option]
+                                              : selectedValues.filter((item) => item !== option);
+                                            handleResponseFieldChange(campo.id, nextValues);
+                                          }}
+                                        />
+                                        {option}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return null;
+                          })}
+                      </div>
+
+                      {responseValidationError && <p className="text-sm text-rose-600">{responseValidationError}</p>}
+                      {responseError && <p className="text-sm text-rose-600">{responseError}</p>}
+                      {responseSuccess && <p className="text-sm text-emerald-600">{responseSuccess}</p>}
+
+                      <div className="flex flex-wrap gap-2 justify-end mt-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSaveResponse("draft")}
+                          disabled={savingResponse}
+                        >
+                          {savingResponse ? "Guardando..." : "Guardar borrador"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary-dark"
+                          onClick={() => handleSaveResponse("completed")}
+                          disabled={savingResponse}
+                        >
+                          {savingResponse ? "Guardando..." : "Guardar y completar"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-gray-500">
+                      Seleccione un formulario clínico para comenzar a registrar la información del paciente.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* PESTAÑA 6 — Nueva consulta — sin tocar */}
             <TabsContent value="nueva-consulta" className="space-y-4">
               <div className="space-y-4">
                 <FormField label="Motivo de consulta" required value={form.motivoConsulta} onChange={(val) => setForm(prev => ({ ...prev, motivoConsulta: val }))} placeholder="Describí el motivo principal de la consulta" />

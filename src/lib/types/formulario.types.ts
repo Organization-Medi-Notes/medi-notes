@@ -33,3 +33,17 @@ export interface FormularioClinico {
   creado_en: Timestamp;
   modificado_en: Timestamp;
 }
+
+export interface FormularioClinicoRespuesta {
+  id?: string;
+  pacienteId: string;
+  formularioId: string;
+  formularioNombre: string;
+  formularioEspecialidad: string;
+  formularioVersion: number;
+  doctorId: string;
+  estado: "draft" | "completed";
+  respuestas: Record<string, string | number | boolean | string[]>;
+  creado_en: Timestamp;
+  modificado_en: Timestamp;
+}
