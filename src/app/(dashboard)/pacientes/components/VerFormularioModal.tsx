@@ -47,6 +47,7 @@ function renderReadOnlyField(campo: FormularioClinico["campos"][number], value: 
 
   if (campo.tipo === "multiselect") {
     const selectedValues = Array.isArray(value) ? value : [];
+
     if (selectedValues.length === 0) {
       return <p className="text-sm text-gray-500">No hay respuestas.</p>;
     }

@@ -21,6 +21,16 @@ interface BuilderModalProps {
   formToEdit: FormularioClinico | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  onSaveVersion?: (params: {
+    sourceForm: FormularioClinico;
+    payload: {
+      nombre: string;
+      descripcion: string;
+      especialidad: string;
+      campos: CampoFormulario[];
+      estadoFormulario: "activo" | "plantilla";
+    };
+  }) => Promise<void>;
 }
 
 const fieldLabels: Record<CampoTipo, string> = {
@@ -67,7 +77,7 @@ const buildInitialForm = (source?: FormularioClinico | null): FormularioClinico 
   };
 };
 
-export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved }: BuilderModalProps) {
+export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved, onSaveVersion }: BuilderModalProps) {
   const { toast } = useToast();
   const [form, setForm] = useState<FormularioClinico>(buildInitialForm(null));
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -155,6 +165,14 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
     };
 
     if (mode === "edit" && form.id) {
+      if (onSaveVersion) {
+        await onSaveVersion({
+          sourceForm: form,
+          payload,
+        });
+        return;
+      }
+
       await formularioService.update(form.id, {
         ...payload,
         version: form.version + 1,
