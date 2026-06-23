@@ -5,6 +5,7 @@ import { Plus, Search, Filter, MoreHorizontal, User, Loader2 } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -43,6 +44,7 @@ export default function PatientsPage() {
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [patientToArchive, setPatientToArchive] = useState<any | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [mostrarArchivados, setMostrarArchivados] = useState(false);
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -116,11 +118,13 @@ export default function PatientsPage() {
     }
   }, [patientToArchive, loadPatients, handleCloseArchiveDialog]);
 
-  const filteredPatients = patients.filter(p => 
-    p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPatients = patients
+    .filter(p => mostrarArchivados ? p.activo === false : p.activo !== false)
+    .filter(p =>
+      p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   const isArchiving = patientToArchive?.activo === true;
 
@@ -150,7 +154,14 @@ export default function PatientsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex gap-4 w-full md:w-auto items-center">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={mostrarArchivados}
+              onCheckedChange={setMostrarArchivados}
+            />
+            <span className="text-sm text-gray-600 whitespace-nowrap">Mostrar archivados</span>
+          </div>
           <Button variant="outline" className="h-11">
             <Filter className="w-4 h-4 mr-2" />
             Filtros
