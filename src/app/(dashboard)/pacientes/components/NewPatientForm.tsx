@@ -34,16 +34,16 @@ const patientSchema = z.object({
   apellidos: z.string().min(1, "Los apellidos son requeridos"),
   fechaNacimiento: z.union([
     // Allow Date objects directly
-    z.instanceof(Date),
+    z.instanceof(Date, { message: "La fecha de nacimiento es requerida" }),
     // Transform string input into a Date object
-    z.string().refine((val) => !isNaN(new Date(val).getTime()), {
+    z.string().min(1, "La fecha de nacimiento es requerida").refine((val) => !isNaN(new Date(val).getTime()), {
       message: "Fecha inválida",
     }).transform((val) => new Date(val)),
   ]),
-  cedula: z.string().optional(),
+  cedula: z.string().min(1, "La cédula es requerida"),
   sexo: z.enum(["masculino", "femenino", "otro"]),
   telefono: z.string().optional(),
-  email: z.string().email("Email inválido").optional(),
+  email: z.string().min(1, "El email es requerido").email("Email inválido"),
   direccion: z.string().optional(),
   contactoEmergenciaNombre: z.string().optional(),
   contactoEmergenciaTelefono: z.string().optional(),
@@ -89,6 +89,8 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
   const form = useForm({
     resolver: zodResolver(patientSchema),
     defaultValues: defaultPatientValues, // Use default values for new patients
+    mode: "onBlur",
+    reValidateMode: "onChange",
   });
 
   const {
@@ -128,25 +130,16 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
         activo: patientToEdit.activo,
       };
       form.reset(transformedPatient);
+      form.trigger();
     } else {
       // Reset to default values for new patient creation
       form.reset(defaultPatientValues);
     }
-  }, [patientToEdit, form.reset]);
+  }, [patientToEdit, form.reset, form.trigger]);
 
   const onSubmit = async (values) => {
     const auth = getAuth();
     const user = auth.currentUser;
-
-    // Validate required fields
-    if (!values.nombre || !values.apellidos || !values.cedula || !values.fechaNacimiento) {
-      toast({
-        title: "Error de validación",
-        description: "Por favor, complete los campos obligatorios: Nombre, Apellidos, Cédula y Fecha de Nacimiento.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     // Prepare data for saving, ensuring fechaNacimiento is a Timestamp
     const dataToSave = {
@@ -511,7 +504,7 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
         />
 
         <div className="flex justify-end pt-4">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+          <Button type="submit" disabled={form.formState.isSubmitting || !form.formState.isValid}>
             {form.formState.isSubmitting ? "Guardando..." : (patientToEdit ? "Actualizar Paciente" : "Guardar Paciente")}
           </Button>
         </div>
