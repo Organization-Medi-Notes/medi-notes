@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { settingsService } from "@/lib/firebase/db-service";
@@ -37,6 +44,11 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [notifications, setNotifications] = useState({
+  email: true,
+  recordatoriosCitas: true,
+  alertasSistema: true,
+});
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -54,18 +66,25 @@ const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     async function loadProfile() {
       try {
         const data = await settingsService.getProfile();
-        if (data) {
-          setProfile(data);
-        } else {
-          setProfile({
-            nombre: "Natalia",
-            apellidos: "Solano",
-            especialidad: "Pediatra",
-            cedula_profesional: "MED-88291-CR",
-            email: auth.currentUser?.email ?? "",
-            telefono: "",
-          });
-        }
+
+if (data) {
+  setProfile(data);
+
+  const dataAny = data as any;
+
+if (dataAny.notifications) {
+  setNotifications(dataAny.notifications);
+}
+} else {
+  setProfile({
+    nombre: "Natalia",
+    apellidos: "Solano",
+    especialidad: "Pediatra",
+    cedula_profesional: "MED-88291-CR",
+    email: auth.currentUser?.email ?? "",
+    telefono: "",
+  });
+}
       } catch (error) {
         console.error(error);
       } finally {
@@ -154,7 +173,10 @@ const handleRoleChange = async (userId: string, newRole: string) => {
     setSaving(true);
 
     try {
-      await settingsService.updateProfile(profile);
+      await settingsService.updateProfile({
+  ...profile,
+  notifications,
+});
 
       toast({
         title: "Éxito",
@@ -384,19 +406,67 @@ const handleRoleChange = async (userId: string, newRole: string) => {
             </TabsContent>
 
             <TabsContent
-              value="notifications"
-              className="mt-0"
-            >
-              <div className="max-w-xs">
-                <Bell className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                <h3 className="font-bold text-gray-400">
-                  Preferencias de Notificación
-                </h3>
-                <p className="text-sm text-gray-400 mt-2">
-                  Configure cómo desea recibir recordatorios y alertas del sistema.
-                </p>
-              </div>
-            </TabsContent>
+  value="notifications"
+  className="mt-0"
+>
+  <Card>
+    <CardHeader>
+      <CardTitle>Preferencias de Notificaciones</CardTitle>
+      <CardDescription>
+        Configure qué alertas desea recibir dentro del sistema.
+      </CardDescription>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span>Notificaciones por correo</span>
+        <input
+          type="checkbox"
+          checked={notifications.email}
+          onChange={(e) =>
+            setNotifications({
+              ...notifications,
+              email: e.target.checked,
+            })
+          }
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span>Recordatorios de citas</span>
+        <input
+          type="checkbox"
+          checked={notifications.recordatoriosCitas}
+          onChange={(e) =>
+            setNotifications({
+              ...notifications,
+              recordatoriosCitas: e.target.checked,
+            })
+          }
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span>Alertas del sistema</span>
+        <input
+          type="checkbox"
+          checked={notifications.alertasSistema}
+          onChange={(e) =>
+            setNotifications({
+              ...notifications,
+              alertasSistema: e.target.checked,
+            })
+          }
+        />
+      </div>
+      <div className="pt-4">
+  <Button onClick={handleSave} disabled={saving}>
+    {saving ? "Guardando..." : "Guardar Cambios"}
+  </Button>
+</div>
+    </CardContent>
+  </Card>
+</TabsContent>
 
             <TabsContent
               value="clinic"
