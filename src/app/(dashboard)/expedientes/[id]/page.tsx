@@ -122,6 +122,19 @@ function getFechaMs(fecha: any): number {
   }
 }
 
+function getDoctorNameFromProfile(data: any): string {
+  if (!data || typeof data !== "object") return "";
+
+  const fullName = String(data.nombreCompleto || data.displayName || "").trim();
+  if (fullName) return fullName;
+
+  const nombre = String(data.nombre || "").trim();
+  const apellidos = String(data.apellidos || "").trim();
+  const combined = `${nombre} ${apellidos}`.trim();
+
+  return combined;
+}
+
 function StatCard({ icon, value, label, color }: {
   icon: React.ReactNode;
   value: string;
@@ -271,12 +284,14 @@ function FormularioHistoricoModal({
   formulario,
   response,
   patientName,
+  doctorName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   formulario: FormularioClinico | null;
   response: FormularioClinicoRespuesta | null;
   patientName: string;
+  doctorName?: string;
 }) {
   if (!response) return null;
 
@@ -311,7 +326,7 @@ function FormularioHistoricoModal({
                       response: {
                         respuestas: response.respuestas,
                         estado: response.estado,
-                        doctorId: response.doctorId,
+                        doctorId: doctorName || response.doctorId,
                         fecha: response.modificado_en ?? response.creado_en,
                       },
                     })
@@ -340,7 +355,7 @@ function FormularioHistoricoModal({
             </div>
             <div>
               <p className="text-xs text-gray-500">Doctor</p>
-              <p className="font-medium text-gray-900">{response.doctorId || "—"}</p>
+              <p className="font-medium text-gray-900">{doctorName || response.doctorId || "—"}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Versión</p>
@@ -417,6 +432,7 @@ export default function ExpedienteDetallePage() {
   const [openViewResponseModal, setOpenViewResponseModal] = useState(false);
   const [viewingResponse, setViewingResponse] = useState<FormularioClinicoRespuesta | null>(null);
   const [loadingFormHistory, setLoadingFormHistory] = useState(false);
+  const [doctorNamesById, setDoctorNamesById] = useState<Record<string, string>>({});
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("todo");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -630,6 +646,62 @@ export default function ExpedienteDetallePage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    const doctorIds = Array.from(
+      new Set(
+        patientResponses
+          .map((response) => String(response.doctorId || "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    const missingDoctorIds = doctorIds.filter((doctorId) => !doctorNamesById[doctorId]);
+    if (!missingDoctorIds.length) return;
+
+    let active = true;
+
+    const loadDoctorNames = async () => {
+      const resolvedNames: Record<string, string> = {};
+
+      await Promise.all(
+        missingDoctorIds.map(async (doctorId) => {
+          try {
+            const userSnap = await getDoc(doc(db, "usuarios", doctorId));
+            if (userSnap.exists()) {
+              const name = getDoctorNameFromProfile(userSnap.data());
+              if (name) {
+                resolvedNames[doctorId] = name;
+                return;
+              }
+            }
+
+            const configSnap = await getDoc(doc(db, "configuracion", doctorId));
+            if (configSnap.exists()) {
+              const name = getDoctorNameFromProfile(configSnap.data());
+              if (name) {
+                resolvedNames[doctorId] = name;
+                return;
+              }
+            }
+
+            resolvedNames[doctorId] = doctorId;
+          } catch {
+            resolvedNames[doctorId] = doctorId;
+          }
+        })
+      );
+
+      if (!active) return;
+      setDoctorNamesById((prev) => ({ ...prev, ...resolvedNames }));
+    };
+
+    void loadDoctorNames();
+
+    return () => {
+      active = false;
+    };
+  }, [patientResponses, doctorNamesById]);
+
   // Timeline combinado y ordenado
   const allEvents = useMemo<TimelineEvent[]>(() => {
     const events: TimelineEvent[] = [
@@ -712,6 +784,9 @@ export default function ExpedienteDetallePage() {
   ];
 
   const selectedForm = viewingResponse?.formularioId ? formsById[viewingResponse.formularioId] ?? null : null;
+  const selectedDoctorName = viewingResponse?.doctorId
+    ? doctorNamesById[viewingResponse.doctorId] || viewingResponse.doctorId
+    : "—";
 
   const handleViewResponse = (response: FormularioClinicoRespuesta) => {
     setViewingResponse(response);
@@ -1097,6 +1172,7 @@ export default function ExpedienteDetallePage() {
         formulario={selectedForm}
         response={viewingResponse}
         patientName={`${paciente.nombre} ${paciente.apellidos}`}
+        doctorName={selectedDoctorName}
       />
 
     </div>

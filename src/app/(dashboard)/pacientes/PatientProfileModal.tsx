@@ -812,7 +812,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] max-w-[1280px] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="flex flex-row items-center justify-between pr-8">
             <DialogTitle className="text-xl font-bold text-gray-900">
               {patient.nombre} {patient.apellidos}
@@ -830,14 +830,14 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
           </DialogHeader>
 
           <Tabs defaultValue="info" className="mt-2">
-            <TabsList className="mb-4">
-              <TabsTrigger value="info">Información general</TabsTrigger>
-              <TabsTrigger value="historial">Consultas</TabsTrigger>
-              <TabsTrigger value="citas">Citas</TabsTrigger>
-              <TabsTrigger value="documentos">Documentos</TabsTrigger>
-              <TabsTrigger value="formularios">Formularios</TabsTrigger>
-              <TabsTrigger value="nueva-consulta">Nueva consulta</TabsTrigger>
-              <TabsTrigger value="timeline">Línea de tiempo</TabsTrigger>
+            <TabsList className="mb-4 flex w-full flex-nowrap items-center justify-start gap-1 overflow-hidden bg-transparent p-0">
+              <TabsTrigger value="info" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Información general</TabsTrigger>
+              <TabsTrigger value="historial" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Consultas</TabsTrigger>
+              <TabsTrigger value="citas" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Citas</TabsTrigger>
+              <TabsTrigger value="documentos" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Documentos</TabsTrigger>
+              <TabsTrigger value="formularios" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Formularios</TabsTrigger>
+              <TabsTrigger value="nueva-consulta" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Nueva consulta</TabsTrigger>
+              <TabsTrigger value="timeline" className="flex-1 min-w-0 px-2 text-xs sm:text-sm">Línea de tiempo</TabsTrigger>
             </TabsList>
 
             {/* PESTAÑA 1 — Información general — sin tocar */}

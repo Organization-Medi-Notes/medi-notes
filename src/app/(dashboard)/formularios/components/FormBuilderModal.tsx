@@ -267,10 +267,6 @@ export function FormBuilderModal({ open, mode, formToEdit, onOpenChange, onSaved
                 Use el constructor para crear un formulario estructurado y revise la vista previa antes de guardar.
               </DialogDescription>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="h-11" onClick={() => setTabValue("constructor")}>Constructor</Button>
-              <Button variant="outline" className="h-11" onClick={() => setTabValue("preview")}>Vista previa</Button>
-            </div>
           </div>
         </DialogHeader>
 

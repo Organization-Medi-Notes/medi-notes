@@ -1,0 +1,118 @@
+hash	fecha	autor	mensaje
+59b212dc6752ee0a48b313181cb5d30e652c5d4e	2026-03-24 20:13:40 +0000	Firebase Studio	Initialized workspace with Firebase Studio
+1f77a6c0da6049420401eea443dd3fb738a09b6b	2026-04-12 11:30:49 +0000	J H	Initial prototype
+d42207d82afe0ba39acc6bb90ed56574e56a0a98	2026-04-12 11:39:35 +0000	J H	como hago para ver las diferentes paginas, dame las urls correctas
+c4a507885c000b164950fb4bd54097e030907c40	2026-04-12 11:49:17 +0000	J H	Cuando le doy click en el dashboard menu algo pasa y queda en blanco, co
+fdac3fab8d2c202dbd4f1b2c23d16263c1e7953b	2026-04-12 11:53:16 +0000	J H	Por algun motivo, la seccion o el modulo de "Calendario" los d+¡as del me
+d7a5d2e35744408d45ca402dbafb3992ed1163fa	2026-04-12 12:11:01 +0000	jessyfide	Initial commit - Medi Notes app
+b2b11df30921f877e95474fca6264db0a1827b71	2026-04-12 06:36:47 -0600	jessyfide	Update README.md
+9cb8050b3f2cebc3ec5692633a7e8bc26cb7e506	2026-04-12 07:02:06 -0600	jessyfide	Update README.md
+b5e7e8668b32101e796d2da1eaa01265593a9127	2026-05-24 14:54:32 +0000	J H	Ayudame a setear la base de datos de medi notes- de esta apliracion, la
+bc86dfe87a65b2202d98f6f89f897badbf385de5	2026-05-24 15:24:24 +0000	J H	No veo la opcion de " Firestore Database "
+564161b246369b026ff6fee3464baa88c057b6fa	2026-05-24 15:30:11 +0000	J H	Ya la cree, pero creoq ue se te olvido crear la integracion para los mod
+ff2f3039bcd07afda4892e171ca515376cef8902	2026-05-24 15:55:41 +0000	J H	y que hace esta variable "measurementId" ya que tiene un valor, como loo
+ac66ae8f7853fbe812fae476f8be1fdca28ba38b	2026-05-24 15:57:07 +0000	J H	Listo, ya agregue esas variables
+0c9b682571518fb2a33061456468707bd15be48d	2026-05-24 16:01:18 +0000	J H	No quiero que modifiques elc odigo ni nada pero se supoen que parte de l
+7297a30acce6a5bfa1662591a1a8c0e2e02ab6ff	2026-05-24 16:52:22 +0000	J H	Fix DB
+4547854180131d213f43dddd1962bb3f62e9d092	2026-05-24 17:01:27 +0000	J H	Merge branch 'main' of https://github.com/jessyfide/medi-notes
+48e44502b9706dc1d53ac7db0d5eb7ed50a12e62	2026-05-26 18:57:08 -0600	Ricardo Artavia Solano	Create Links_Documentacion.txt
+0382428450a8ba81bf30c5c18bb5e848b87d063e	2026-05-26 18:57:45 -0600	Ricardo Artavia Solano	Update and rename Links_Documentacion.txt to Links_Documentacion.md
+0e962e084b1ea6e9480216fcb1af52a4c3496a6d	2026-05-26 18:58:48 -0600	Ricardo Artavia Solano	Update Links_Documentacion.md
+fd00d8fb37212d3c7e3d9bd6890c71d4b01c3986	2026-05-26 18:59:05 -0600	Ricardo Artavia Solano	Rename Links_Documentacion.md to Documentacion.md
+37485ce394bd2721ca9cb446985f5dac591ed172	2026-05-26 19:00:51 -0600	Ricardo Artavia Solano	Update Documentacion.md
+6d45bbb8e2f609eeef4f21b6ada88bdbd95306e3	2026-05-26 19:01:27 -0600	Ricardo Artavia Solano	Update Documentacion.md
+ec8c974809261048a5776acc1c7e9cb6e0a94153	2026-05-26 19:02:01 -0600	Ricardo Artavia Solano	Update Documentacion.md
+418c3417ac81b6bd422285fef657221dd9afa689	2026-05-28 15:15:39 -0600	Erick Marin	Implement AUT-HU-001 real login authentication
+8e14cabd9bbe2ed897e4c5aac40d0aa1c691cae2	2026-05-28 16:13:01 -0600	Erick Marin Monge	Merge pull request #83 from Organization-Medi-Notes/feature/erick-aut-hu-001
+9dffeee0967c44bedd732f87bc0d4b32b6e22961	2026-05-28 17:37:22 -0600	Erick Marin	Implement AUT-HU-011 user registration
+dafcee0842f91faf92f13c54b8e14f327e11369f	2026-05-28 18:22:25 -0600	Erick Marin Monge	Merge pull request #85 from Organization-Medi-Notes/feature/erick-aut-hu-011
+9b06e2510384b60eae10c93c3324f99ba1ba367f	2026-05-29 03:12:57 +0000	J H	registrar nuevos pacientes
+4f9927e474933e95677f62548ea85b69e163bfcb	2026-05-30 18:27:57 -0600	Erick Marin Monge	Merge pull request #86 from Organization-Medi-Notes/HU-PAC-001
+ed4283a77465bfeb0997e8dac8f35b544862a335	2026-05-31 15:31:38 -0600	Erick Marin	Implement AUT-HU-006 logout
+409d20f66cadbe761b9c9a285abe3784dfe0e807	2026-05-31 16:39:40 -0600	Erick Marin	Implement AUT-HU-003 password recovery
+314510acd4669b1cc66eb9462a9f8371a58ab171	2026-05-31 17:26:48 -0600	Erick Marin	AUT-HU-007 - Cambio de contrase+¦a desde configuraci+¦n
+9c045aac61addd73ef450de5f2054857a1a33f23	2026-05-31 18:03:42 -0600	Erick Marin	AUT-HU-005 - Bloqueo temporal por intentos fallidos
+bf252c8663f0f5c87a26a103f9df401cb9943c8a	2026-06-01 05:40:49 +0000	J H	HU-PAC-002 Implementar edici+¦n de pacientes
+f0c58d3121c6b0ea04f775a91b7ea662efad499d	2026-05-31 23:45:58 -0600	jessyfide	Merge pull request #91 from Organization-Medi-Notes/HU-PAC-002
+eb166424d6fbc601167a336d3e502b19c33a9fa7	2026-06-01 06:08:49 +0000	J H	Ver historial m+®dico del paciente
+55e89f56e3e19af7f76f4b88514c59833a3192b7	2026-06-01 00:13:10 -0600	jessyfide	Merge pull request #92 from Organization-Medi-Notes/HU-PAC-004
+5ebe5361d732d71f64c44f8a71b79349c57676be	2026-06-01 06:35:42 +0000	J H	HU-PAC-005 Ver citas pasadas del paciente
+fff1a65d188653ce76490c4e464dbdf038c895f4	2026-06-01 00:38:20 -0600	jessyfide	Merge pull request #93 from Organization-Medi-Notes/HU-PAC-005
+ad35d2e1c416674bdaefde545d5a225007002539	2026-06-01 07:20:47 +0000	J H	HU-PAC-006 Adjuntar documentos al paciente
+25fd05867f81cdf4faf2553e32673db95b12af2d	2026-06-01 01:31:21 -0600	jessyfide	Merge pull request #94 from Organization-Medi-Notes/HU-PAC-006
+dffa5c66417a9399655ff5170b89f43c17f4891e	2026-06-01 08:21:51 +0000	J H	U-PAC-007 Agregar notas cl+¡nicas y ver detalle de consulta
+f84d8bf1a8e2f92615603cf7876948f7f94888b9	2026-06-01 02:25:04 -0600	jessyfide	Merge pull request #95 from Organization-Medi-Notes/HU-PAC-007
+584807678505ae4d9013d59434563a3eb4b13716	2026-06-01 08:52:35 +0000	J H	HU-PAC-008 Archivar y desarchivar pacientes
+bdbb60aebae178a637fbc484b92047303f7634c4	2026-06-01 02:54:05 -0600	jessyfide	Merge pull request #96 from Organization-Medi-Notes/HU-PAC-009
+2315698b0713fc8aecdb5f19adf4a38afbd8f906	2026-06-01 09:10:18 +0000	J H	HU-PAC-010
+18ddb45ad5e7116d115fdd0eace8ff8e6309597c	2026-06-01 03:12:14 -0600	jessyfide	Merge pull request #97 from Organization-Medi-Notes/HU-PAC-010
+0ad302e7bc8e1edb6ac42df2c58c3a4fffde90d4	2026-06-01 09:35:13 +0000	J H	HU-PAC-010 Exportar ficha del paciente a PDF
+4c117de4e80651a8d48da5f085ffd679bf10f296	2026-06-01 03:37:26 -0600	jessyfide	Merge pull request #98 from Organization-Medi-Notes/HU-PAC-012
+49fee10002dd9137596ca0c01cc7d6e413d97384	2026-06-01 09:55:17 +0000	J H	HU-PAC-011 Vista 360 del paciente ÔÇö L+¡nea de tiempo
+ef416f077d347df454c665c2736cc41b13ef6c1b	2026-06-01 03:57:13 -0600	jessyfide	Merge pull request #99 from Organization-Medi-Notes/HU-PAC-014
+f2356c198df9201349a5cce95bcded804391c390	2026-06-01 10:40:43 +0000	J H	EXP-HU-001 Lista de expedientes cl+¡nicos
+227e03dc066bfded9c2acb7d264903acaa7cdd39	2026-06-01 04:43:32 -0600	jessyfide	Merge pull request #100 from Organization-Medi-Notes/EXP-HU-001
+455f786a6c7107facad338be516458fecf413de6	2026-06-01 18:09:39 +0000	J H	agregar scripts de seed y unseed para datos de prueba
+3c8c202d6b6ab5ddbd945cfff5be1e0981e1ff4c	2026-06-01 18:13:18 +0000	J H	agregar scripts de seed y unseed para datos de prueba
+f3920f20a32b00f4b3a907122f38373f9fdd80c3	2026-06-01 12:14:45 -0600	jessyfide	Merge pull request #102 from Organization-Medi-Notes/HU-PAC-015
+6408cedbe6ec18a0fb255b281dfd682fccb6bee1	2026-06-01 18:50:35 +0000	J H	reemplazar ID hardcodeado medico_demo_1 por auth.currentUser?.uid en db-service.ts
+c5e127ebb70958eaf10875bcd975ddefd363ed7e	2026-06-01 12:52:26 -0600	jessyfide	Merge pull request #104 from Organization-Medi-Notes/HU-PAC-16
+baa8e5693d101a250dddaeaccf1a6b9b6f3474f0	2026-06-01 20:13:48 +0000	J H	EXP-HU-002 P+ígina de detalle del expediente con resumen estad+¡stico
+f74c5f7ccc4b7b08cc157d869e2d62de784b6425	2026-06-01 14:16:24 -0600	jessyfide	Merge pull request #105 from Organization-Medi-Notes/EXP-HU-002
+3b4121605a98e3a4daeeee09137393d54d8ab7f7	2026-06-01 20:39:38 +0000	J H	EXP-HU-003 Banner de alertas m+®dicas en el expediente
+d25fc9f5341c77ea6d5f025cb04f57ce8b9e4727	2026-06-01 14:41:15 -0600	jessyfide	Merge pull request #106 from Organization-Medi-Notes/EXP-HU-003
+bfe5d6ccce364cce4845d7b70e4d4ea2f215ff58	2026-06-01 21:26:46 +0000	J H	EXP-HU-004 - mostrar diagn+¦sticos m+ís frecuentes del paciente
+8e446cb8b5a7cd659e9d3ab9617ec6c1f8158dc0	2026-06-01 15:28:26 -0600	jessyfide	Merge pull request #107 from Organization-Medi-Notes/EXP-HU-004
+4ce8b7619e2e6f4ca8fb276c6210a43f12463384	2026-06-01 17:42:30 -0600	Ricardo Artavia Solano	boton de calendario funcional
+19e7bcb3a467be68e8e2cff7e333deb59b4c0815	2026-06-01 22:18:32 -0600	Erick Marin Monge	Merge pull request #87 from Organization-Medi-Notes/feature/erick-aut-hu-006
+b5f8a0c52fb0233af2e09819bd1802d4e3b60db3	2026-06-01 22:19:30 -0600	Erick Marin Monge	Merge pull request #88 from Organization-Medi-Notes/feature/erick-aut-hu-003
+9cd2cd2583ebc410a9d0adb73b20afb256bed0e0	2026-06-01 22:19:51 -0600	Erick Marin Monge	Merge pull request #89 from Organization-Medi-Notes/feature/erick-aut-hu-007
+711fd566fdbca1669ffe6c37f95e7d70e9629817	2026-06-01 22:54:36 -0600	Erick Marin Monge	Merge branch 'main' into feature/erick-aut-hu-005
+d0a6e3405a4778f5d94d4a71889f7f5bc09d931d	2026-06-01 22:54:48 -0600	Erick Marin Monge	Merge pull request #90 from Organization-Medi-Notes/feature/erick-aut-hu-005
+86224e036d6f36d7a96dd2b5b7d065d35827a343	2026-06-02 14:44:04 -0600	Erick Marin	AUT-HU-010 - Expiraci+¦n autom+ítica por inactividad
+c4b9d362fcb6dffc377badb8a9ec08cd42160c14	2026-06-02 14:44:32 -0600	Erick Marin Monge	Merge pull request #108 from Organization-Medi-Notes/feature/erick-aut-hu-010
+ef028c141e7f4f58467d5981a45a777453e73741	2026-06-02 16:19:36 -0600	Ricardo Artavia Solano	HU-CAL
+216f469a48e3637b8d6a02170ab82a5957ba6fc8	2026-06-02 16:21:16 -0600	Erick Marin	Implement AUT-HU-009 login activity audit trail
+8729abc0941fcb60a2fd99994435cebc9fb81153	2026-06-02 16:21:41 -0600	Erick Marin Monge	Merge pull request #109 from Organization-Medi-Notes/feature/erick-aut-hu-009
+01f8e0c2eb4fd0e2ac7591e2ca4b28a80a504045	2026-06-02 16:22:26 -0600	Ricardo Artavia Solano	Merge branch 'main' into CAL---Calendario-y-Citas
+ca75000a3163bc2e03e9c1ca086adeb6220b4f8d	2026-06-02 16:46:26 -0600	Ricardo Artavia Solano	Merge pull request #110 from Organization-Medi-Notes/CAL---Calendario-y-Citas
+b4a2d9a8fc755080a5507334d3d6e20d53c6ea99	2026-06-02 17:23:13 -0600	Erick Marin	feat: implement AUT-HU-004 role-based access control
+e36e632316a023976a2eb02e157aebd5c143c0d5	2026-06-02 17:23:32 -0600	Erick Marin Monge	Merge pull request #111 from Organization-Medi-Notes/feature/erick-aut-hu-004
+21e8a1cc8b29ed8762f60c0428ae101573b33c78	2026-06-02 23:55:14 +0000	J H	HU-PAC-006 Adjuntar documentos al paciente via Cloudinary
+abd96d8d5d875a92846d3b47500b41e594853345	2026-06-02 17:56:34 -0600	jessyfide	Merge pull request #112 from Organization-Medi-Notes/HU-PAC-006
+b1b530b79f90c5af85b54572702f5af2fd0157a7	2026-06-03 00:17:05 +0000	J H	EXP-HU-005 Documentos recientes en p+ígina de detalle del expediente
+b246728c2f5eda1c74ecc9fa9ab18a3300df0907	2026-06-02 18:20:40 -0600	jessyfide	Merge pull request #113 from Organization-Medi-Notes/EXP-HU-005
+649170ad00d06a994083b3150869a0acf2c56419	2026-06-02 18:30:35 -0600	Erick Marin	AUT-HU-008 - Administraci+¦n de roles de usuario
+98a9ec9514e5f5c6126a8ee80a26b85cb2229150	2026-06-02 18:30:58 -0600	Erick Marin Monge	Merge pull request #114 from Organization-Medi-Notes/feature/erick-aut-hu-008
+9b2a9220643898f9009800950b007393c7a331a5	2026-06-03 01:25:15 +0000	J H	EXP-HU-006 L+¡nea de tiempo completa en p+ígina de detalle del expediente
+1d8122c1f8096598c3eb81e87cc99cef9850a870	2026-06-02 19:27:57 -0600	jessyfide	Merge pull request #115 from Organization-Medi-Notes/EXP-HU-006
+5273bbe93e7724c4ffadbb93d752a1156afe9b58	2026-06-10 02:18:23 +0000	J H	Add formulario component
+1cee0a8312849ce672c7467717ad96c99bd7b72d	2026-06-09 20:21:46 -0600	jessyfide	Merge pull request #117 from Organization-Medi-Notes/Add-FOR-module
+1d658fde791f8710b1717b5ec45d559664428af6	2026-06-09 21:25:58 -0600	SimonPVFide	HU-FOR-001
+4bac1932b08bbde4f01ca441226297af6af81a8c	2026-06-21 11:07:20 -0600	SimonPVFide	HU-FOR-001
+d52bf019ec013491c53270f7f344188835b44433	2026-06-21 11:51:25 -0600	SimonPVFide	HU-FOR-004
+e7807b8e29f387b9a52b8485d02abd598e39fb0c	2026-06-21 13:05:43 -0600	SimonPVFide	HU-FOR-005
+89208e180f63bfaa79b550b629c1842aedfb6223	2026-06-21 17:25:56 -0600	SimonPVFide	HU-FOR-008
+9ca662036899100ae08c958ced5ad4ebb99b83e1	2026-06-21 18:27:39 -0600	SimonPVFide	HU-FOR-010
+2bc24d9fdbb75c666cde51be95d6f93f755f7a57	2026-06-21 19:06:45 -0600	SimonPVFide	HU-FOR-007
+8bb934a532b12417eafb12f294312036fcfb5c15	2026-06-21 19:54:11 -0600	SimonPVFide	HU-FOR-15
+9c4a6451a9792be7d5021bc9f0ea05486b47dc75	2026-06-23 15:38:39 -0600	Erick Marin	CFG-HU-001 Actualizaci+¦n de perfil
+e95388fe2b57f48b1427ee578d3b0613421f40c3	2026-06-23 15:39:38 -0600	Erick Marin Monge	Merge pull request #128 from Organization-Medi-Notes/feature/erick-cfg-hu-001
+0f333efa516852a39cf682c246410e85a476ba71	2026-06-23 15:42:49 -0600	SimonPVFide	Merge pull request #118 from Organization-Medi-Notes/HU-FOR-001
+580a009421b52f56bf9782cc641c58b34b5ff8bc	2026-06-23 15:43:29 -0600	SimonPVFide	Merge pull request #122 from Organization-Medi-Notes/HU-FOR-004
+064bb165a1188462d04b143673e0110d12bde123	2026-06-23 15:43:57 -0600	SimonPVFide	Merge pull request #123 from Organization-Medi-Notes/HU-FOR-005
+efd46b059cde0282f7e42b3222c3c283e768197c	2026-06-23 15:44:22 -0600	SimonPVFide	Merge pull request #124 from Organization-Medi-Notes/HU-FOR-008
+659571eca81f4fe6965e714f21465bad4022827b	2026-06-23 15:44:39 -0600	SimonPVFide	Merge pull request #125 from Organization-Medi-Notes/HU-FOR-010
+ea3875f74e5cbedf5d1f8701199788a21af128a8	2026-06-23 15:45:08 -0600	SimonPVFide	Merge pull request #126 from Organization-Medi-Notes/HU-FOR-007
+5a0578d1a9eedea94580307e8caf8a2a556d982a	2026-06-23 15:45:26 -0600	SimonPVFide	Merge pull request #127 from Organization-Medi-Notes/HU-FOR-15
+7b96514cf339dc872a226f82f366c3590668651b	2026-06-23 21:54:09 +0000	J H	agregar switch para mostrar/ocultar pacientes archivados en lista de pacientes
+466dfbbe7a872849c82e3ebfffb38022f6211596	2026-06-23 15:55:23 -0600	jessyfide	Merge pull request #129 from Organization-Medi-Notes/HU-PAC-016
+88105cc56e8c7f82c852d6fdcc27c46e340d19e2	2026-06-23 22:06:30 +0000	J H	agregar filtro de pacientes por etiqueta en m+¦dulo de pacientes
+de00f030180d55f4e774176c4cf0cd366ce73f0e	2026-06-23 16:08:28 -0600	jessyfide	Merge pull request #130 from Organization-Medi-Notes/HU-PAC-017
+2b3d89a8d4e1a6086157bf82b1b25d3f23e822ad	2026-06-23 16:41:57 -0600	Erick Marin	CFG-HU-003 Configuraci+¦n de notificaciones
+c0aef9caab01a9090aea3ab1fe3d658f6e18f299	2026-06-23 16:42:19 -0600	Erick Marin Monge	Merge pull request #131 from Organization-Medi-Notes/feature/erick-cfg-hu-003
+6cd9e6ce5b96aaeb04599fad1f8b05bb64439e8a	2026-06-23 22:53:58 +0000	J H	habilitar bot+¦n Actualizar Paciente al editar mediante validaci+¦n forzada
+e8f6d93d17b1f7181a68b383d5f914e247fe7fcd	2026-06-23 16:54:48 -0600	Ricardo Artavia Solano	Update package-lock.json
+bca87bafade7231cb5ca041950f39141a9923878	2026-06-23 16:55:48 -0600	jessyfide	Merge pull request #132 from Organization-Medi-Notes/PAC-HU-010
+334920895b00ff5b60b22eb0c9b8b1b864630211	2026-06-23 17:50:01 -0600	Ricardo Artavia Solano	Implementa dashboard y notificaci+¦n de cita por correo
+129adc680e18513881f13061fce86cb6d175fdc5	2026-06-23 17:50:48 -0600	Ricardo Artavia Solano	Merge pull request #133 from Organization-Medi-Notes/HU-DAS-001-v2
