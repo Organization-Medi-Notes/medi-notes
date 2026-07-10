@@ -12,6 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -47,6 +56,19 @@ type AppointmentReportRow = {
   estado: string;
   estadoNormalizado: string;
 };
+
+type ClinicalExpedienteRow = {
+  latestConsulta: any | null;
+  consultas: any[];
+  patient: any;
+  patientId: string;
+  patientName: string;
+  ultimaConsulta: any;
+  totalConsultas: number;
+};
+
+type SupportPath = "administrativo" | "clinico";
+type ClinicalSubtype = "historia_resumida" | "hoja_evolucion" | "datos";
 
 function getFechaMs(fecha: any): number {
   if (!fecha) return 0;
@@ -159,12 +181,52 @@ function getAppointmentsReportFileName(start: string, end: string): string {
   return `reporte-citas-${start || "inicio"}-a-${end || "fin"}.pdf`;
 }
 
+function getSupportDocFileName(suffix: string): string {
+  return `documento-apoyo-${suffix}-${new Date().getTime()}.pdf`;
+}
+
+function getDateFromAny(value: any): Date | null {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (value?.seconds) return new Date(value.seconds * 1000);
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDate(value: any): string {
+  const date = getDateFromAny(value);
+  if (!date) return "—";
+  return date.toLocaleDateString("es-CR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function toStringArray(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
+}
+
+function getClinicalSubtypeLabel(subtype: ClinicalSubtype): string {
+  if (subtype === "historia_resumida") return "Historia clínica resumida";
+  if (subtype === "hoja_evolucion") return "Hoja de evolución";
+  return "Datos";
+}
+
 export default function ReportsPage() {
   const { toast } = useToast();
   const [chartData, setChartData] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
+  const [consultas, setConsultas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [appointmentRangeStart, setAppointmentRangeStart] = useState(() => {
     const firstDay = new Date();
@@ -178,6 +240,11 @@ export default function ReportsPage() {
     return toDateInputValue(firstDay);
   });
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()));
+  const [openSupportDocDialog, setOpenSupportDocDialog] = useState(false);
+  const [supportPath, setSupportPath] = useState<SupportPath | null>(null);
+  const [clinicalSubtype, setClinicalSubtype] = useState<ClinicalSubtype | null>(null);
+  const [supportDocError, setSupportDocError] = useState("");
+  const [generatingSupportDoc, setGeneratingSupportDoc] = useState(false);
 
   useEffect(() => {
     async function processStats() {
@@ -188,9 +255,13 @@ export default function ReportsPage() {
           medicalRecordService.getAll(),
         ]);
 
+        const consultasSnap = await getDocs(collection(db, "consultas"));
+        const consultasRows = consultasSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+
         setAppointments(apts);
         setPatients(pats);
         setRecords(recs);
+        setConsultas(consultasRows);
 
         const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
         const stats = months.map((month) => ({ name: month, consultas: 0, ingresos: 0 }));
@@ -306,6 +377,37 @@ export default function ReportsPage() {
       { programada: 0, realizada: 0, cancelada: 0 }
     );
   }, [appointmentRows]);
+
+  const clinicalRows = useMemo<ClinicalExpedienteRow[]>(() => {
+    const activePatients = patients.filter((patient: any) => patient?.activo !== false);
+
+    return activePatients
+      .map((patient: any) => {
+        const patientId = String(patient?.id ?? "").trim();
+        const patientConsultas = consultas
+          .filter((consulta: any) => String(consulta?.pacienteId ?? consulta?.paciente_id ?? "").trim() === patientId)
+          .sort((a: any, b: any) => (getDateFromAny(b?.fecha)?.getTime() ?? 0) - (getDateFromAny(a?.fecha)?.getTime() ?? 0));
+
+        const latestConsulta = patientConsultas[0] ?? null;
+
+        return {
+          latestConsulta,
+          consultas: patientConsultas,
+          patient,
+          patientId,
+          patientName: `${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim() || String(patient?.nombre_completo ?? "Paciente"),
+          ultimaConsulta: latestConsulta?.fecha ?? null,
+          totalConsultas: patientConsultas.length,
+        };
+      })
+      .sort((a, b) => (getDateFromAny(b.ultimaConsulta)?.getTime() ?? 0) - (getDateFromAny(a.ultimaConsulta)?.getTime() ?? 0));
+  }, [consultas, patients]);
+
+  const canGenerateSupportDoc = useMemo(() => {
+    if (!supportPath) return false;
+    if (supportPath === "administrativo") return appointmentRows.length > 0;
+    return false;
+  }, [appointmentRows.length, supportPath]);
 
   const appointmentRangeInvalid = appointmentRangeStart && appointmentRangeEnd ? appointmentRangeStart > appointmentRangeEnd : false;
 
@@ -486,6 +588,219 @@ export default function ReportsPage() {
     });
   };
 
+  const handleOpenSupportDocDialog = () => {
+    setOpenSupportDocDialog(true);
+    setSupportPath(null);
+    setClinicalSubtype(null);
+    setSupportDocError("");
+  };
+
+  const handleGenerateAdministrativeSupportDoc = (): boolean => {
+    if (appointmentRows.length === 0) {
+      setSupportDocError("No hay citas para generar el documento administrativo.");
+      return false;
+    }
+
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const margin = 12;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    pdf.setTextColor(30, 58, 95);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("Documento de apoyo administrativo", margin, 16);
+
+    pdf.setTextColor(71, 85, 105);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(`Periodo: ${formatPeriodo(appointmentRangeStart, appointmentRangeEnd)}`, margin, 22);
+    pdf.text(`Programadas: ${appointmentCounts.programada}`, margin, 27);
+    pdf.text(`Realizadas: ${appointmentCounts.realizada}`, margin, 32);
+    pdf.text(`Canceladas: ${appointmentCounts.cancelada}`, margin, 37);
+
+    autoTable(pdf, {
+      startY: 43,
+      head: [["Fecha", "Hora", "Paciente", "Tipo", "Estado"]],
+      body: appointmentRows.map((row) => [row.fecha, row.hora, row.paciente, row.tipoConsulta, row.estado]),
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 8,
+        cellPadding: 2.5,
+        textColor: [51, 65, 85],
+      },
+      headStyles: {
+        fillColor: [45, 106, 159],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      margin: { top: 43, left: margin, right: margin, bottom: 16 },
+    });
+
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Medi Notes · Página ${i} de ${totalPages}`, margin, pageH - 8);
+      pdf.text(`Generado el ${new Date().toLocaleDateString("es-CR")}`, pageW - margin - 38, pageH - 8);
+    }
+
+    pdf.save(getSupportDocFileName("administrativo"));
+    return true;
+  };
+
+  const handleExportClinicalRecordDoc = (row: ClinicalExpedienteRow, subtype: ClinicalSubtype): boolean => {
+    if (!row) {
+      setSupportDocError("No se encontró el expediente seleccionado.");
+      return false;
+    }
+
+    const patient = row.patient as any;
+    const record = row.latestConsulta as any;
+    const rowConsultas = row.consultas;
+    const patientName = row.patientName;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const margin = 16;
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    pdf.setTextColor(30, 58, 95);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("Documento de apoyo clínico", margin, 18);
+
+    pdf.setTextColor(71, 85, 105);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(`Paciente: ${patientName}`, margin, 24);
+    pdf.text(`Subtipo: ${getClinicalSubtypeLabel(subtype)}`, margin, 29);
+    pdf.text(`Generado el: ${new Date().toLocaleDateString("es-CR")}`, margin, 34);
+
+    if (subtype === "historia_resumida") {
+      const latestRecordDate = formatDate(record?.fecha) || formatDate(patient?.actualizado_en ?? patient?.creado_en);
+
+      const antecedentesPersonales = String(patient?.antecedentesPersonales ?? patient?.antecedentes_personales ?? "—");
+      const antecedentesFamiliares = String(patient?.antecedentesFamiliares ?? patient?.antecedentes_familiares ?? "—");
+      const alergias = toStringArray(patient?.alergias);
+      const medicamentos = toStringArray(patient?.medicamentosActuales ?? patient?.medicamentos_actuales);
+
+      autoTable(pdf, {
+        startY: 42,
+        head: [["Sección", "Contenido", "Fecha de registro"]],
+        body: [
+          ["Antecedentes personales", antecedentesPersonales || "—", latestRecordDate || "—"],
+          ["Antecedentes familiares", antecedentesFamiliares || "—", latestRecordDate || "—"],
+          ["Alergias", alergias.length > 0 ? alergias.join(", ") : "—", latestRecordDate || "—"],
+          ["Medicamentos actuales", medicamentos.length > 0 ? medicamentos.join(", ") : "—", latestRecordDate || "—"],
+        ],
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+        headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+        margin: { left: margin, right: margin, bottom: 16 },
+      });
+    }
+
+    if (subtype === "hoja_evolucion") {
+      const rows = rowConsultas.map((consulta: any) => [
+        formatDate(consulta?.fecha),
+        String(consulta?.motivoConsulta ?? consulta?.motivo_consulta ?? "—"),
+        Array.isArray(consulta?.diagnostico)
+          ? consulta.diagnostico.join(", ") || "—"
+          : String(consulta?.diagnostico ?? consulta?.diagnostico_principal ?? "—"),
+        String(consulta?.tratamiento ?? consulta?.plan_tratamiento ?? "—"),
+      ]);
+
+      autoTable(pdf, {
+        startY: 42,
+        head: [["Fecha", "Consulta", "Diagnóstico", "Tratamiento"]],
+        body: rows.length > 0 ? rows : [["—", "Sin consultas registradas", "—", "—"]],
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 8.5, textColor: [51, 65, 85] },
+        headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+        margin: { left: margin, right: margin, bottom: 16 },
+      });
+    }
+
+    if (subtype === "datos") {
+      const demographics = [
+        ["Nombre", `${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim() || patientName],
+        ["Identificación", String(patient?.cedula ?? "—")],
+        ["Edad", patient?.edad ? `${patient.edad} años` : "—"],
+        ["Sexo", String(patient?.sexo ?? "—")],
+        ["Fecha de nacimiento", formatDate(patient?.fecha_nacimiento ?? patient?.fechaNacimiento)],
+        ["Número de expediente", String(patient?.numero_expediente ?? "—")],
+      ];
+
+      const contact = [
+        ["Teléfono", String(patient?.telefono ?? "—")],
+        ["Email", String(patient?.email ?? "—")],
+        ["Dirección", String(patient?.direccion ?? "—")],
+        ["Contacto emergencia", String(patient?.contactoEmergenciaNombre ?? patient?.contacto_emergencia_nombre ?? "—")],
+        ["Tel. emergencia", String(patient?.contactoEmergenciaTelefono ?? patient?.contacto_emergencia_telefono ?? "—")],
+      ];
+
+      autoTable(pdf, {
+        startY: 42,
+        head: [["Datos demográficos", "Valor"]],
+        body: demographics,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+        headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+        margin: { left: margin, right: margin, bottom: 16 },
+      });
+
+      const startY = (pdf as any).lastAutoTable?.finalY ? (pdf as any).lastAutoTable.finalY + 8 : 120;
+
+      autoTable(pdf, {
+        startY,
+        head: [["Contacto", "Valor"]],
+        body: contact,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+        headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255] },
+        margin: { left: margin, right: margin, bottom: 16 },
+      });
+    }
+
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Medi Notes · Página ${i} de ${totalPages}`, margin, pageH - 8);
+    }
+
+    pdf.save(getSupportDocFileName(`${subtype}-${row.patientId || "expediente"}`));
+    return true;
+  };
+
+  const handleGenerateSupportDocument = () => {
+    setSupportDocError("");
+    setGeneratingSupportDoc(true);
+
+    try {
+      if (!supportPath) {
+        setSupportDocError("Seleccione un camino: administrativo o clínico.");
+        return;
+      }
+
+      let success = false;
+      if (supportPath === "administrativo") {
+        success = handleGenerateAdministrativeSupportDoc();
+      } else {
+        setSupportDocError("Seleccione un subtipo y use el botón Exportar de cada expediente.");
+        success = false;
+      }
+
+      if (success) {
+        setOpenSupportDocDialog(false);
+      }
+    } finally {
+      setGeneratingSupportDoc(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -496,11 +811,222 @@ export default function ReportsPage() {
           </h1>
           <p className="text-gray-500 mt-1">Analice la actividad clínica y genere reportes de pacientes atendidos por periodo.</p>
         </div>
-        <Button variant="outline" onClick={handleExportPdf} disabled={loading || hasInvalidRange || reportRows.length === 0}>
-          <Download className="w-4 h-4 mr-2" />
-          Exportar PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleOpenSupportDocDialog}>
+            Generar documento de apoyo
+          </Button>
+        </div>
       </div>
+
+      <Dialog
+        open={openSupportDocDialog}
+        onOpenChange={(open) => {
+          setOpenSupportDocDialog(open);
+          if (!open) {
+            setSupportPath(null);
+            setClinicalSubtype(null);
+            setSupportDocError("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Generar documento de apoyo</DialogTitle>
+            <DialogDescription>
+              Seleccione el camino administrativo o clínico. En clínico, el reporte se genera por paciente desde expediente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 mt-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Camino</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={supportPath === "administrativo" ? "default" : "outline"}
+                  className={cn("h-auto py-3 text-sm justify-start", supportPath === "administrativo" && "bg-accent hover:bg-accent/90 text-white")}
+                  onClick={() => {
+                    setSupportPath("administrativo");
+                    setSupportDocError("");
+                  }}
+                >
+                  Administrativo
+                </Button>
+                <Button
+                  type="button"
+                  variant={supportPath === "clinico" ? "default" : "outline"}
+                  className={cn("h-auto py-3 text-sm justify-start", supportPath === "clinico" && "bg-accent hover:bg-accent/90 text-white")}
+                  onClick={() => {
+                    setSupportPath("clinico");
+                    setSupportDocError("");
+                  }}
+                >
+                  Clínico
+                </Button>
+              </div>
+            </div>
+
+            {supportPath === "administrativo" && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                Se generará un documento administrativo con citas por estado (programadas, realizadas y canceladas) según el periodo seleccionado en reportes.
+              </div>
+            )}
+
+            {supportPath === "clinico" && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Opciones clínicas</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: "historia_resumida" as ClinicalSubtype, label: "Historia clínica resumida" },
+                      { id: "hoja_evolucion" as ClinicalSubtype, label: "Hoja de evolución" },
+                      { id: "datos" as ClinicalSubtype, label: "Datos" },
+                    ].map((option) => (
+                      <Button
+                        key={option.id}
+                        type="button"
+                        variant={clinicalSubtype === option.id ? "default" : "outline"}
+                        className={cn("h-auto py-3 text-xs text-left justify-start", clinicalSubtype === option.id && "bg-accent hover:bg-accent/90 text-white")}
+                        onClick={() => {
+                          setClinicalSubtype(option.id);
+                          setSupportDocError("");
+                        }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {clinicalSubtype && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Expedientes disponibles</p>
+                    {clinicalRows.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
+                        No hay expedientes disponibles.
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="max-h-72 overflow-auto">
+                          <Table>
+                            <TableHeader className="bg-gray-50/80">
+                              <TableRow>
+                                <TableHead className="font-bold py-3">Fecha expediente</TableHead>
+                                <TableHead className="font-bold py-3">Paciente</TableHead>
+                                <TableHead className="font-bold py-3">
+                                  {clinicalSubtype === "historia_resumida"
+                                    ? "Resumen"
+                                    : clinicalSubtype === "hoja_evolucion"
+                                    ? "Consulta / Diagnóstico / Tratamiento"
+                                    : "Datos y contacto"}
+                                </TableHead>
+                                <TableHead className="font-bold py-3 text-right">Acción</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {clinicalRows.map((row) => {
+                                const record = row.latestConsulta;
+                                const patient = row.patient;
+
+                                const resumenHistoria = [
+                                  `Antecedentes: ${String(patient?.antecedentesPersonales ?? patient?.antecedentes_personales ?? "—")}`,
+                                  `Alergias: ${toStringArray(patient?.alergias).join(", ") || "—"}`,
+                                  `Medicamentos: ${toStringArray(patient?.medicamentosActuales ?? patient?.medicamentos_actuales).join(", ") || "—"}`,
+                                ].join(" | ");
+
+                                const resumenEvolucion = [
+                                  `Consulta: ${String(record?.motivoConsulta ?? record?.motivo_consulta ?? "—")}`,
+                                  `Diagnóstico: ${Array.isArray(record?.diagnostico) ? (record.diagnostico.join(", ") || "—") : String(record?.diagnostico ?? "—")}`,
+                                  `Tratamiento: ${String(record?.tratamiento ?? record?.plan_tratamiento ?? "—")}`,
+                                ].join(" | ");
+
+                                const resumenDatos = [
+                                  `Demográficos: ${String(patient?.cedula ?? "—")}, ${patient?.edad ? `${patient.edad} años` : "—"}`,
+                                  `Contacto: ${String(patient?.telefono ?? "—")} / ${String(patient?.email ?? "—")}`,
+                                ].join(" | ");
+
+                                return (
+                                  <TableRow key={String(record?.id ?? `${row.patientId}-${formatDate(row.ultimaConsulta)}`)}>
+                                    <TableCell className="text-gray-700 whitespace-nowrap">{formatDate(row.ultimaConsulta)}</TableCell>
+                                    <TableCell className="font-semibold text-gray-900">{row.patientName}</TableCell>
+                                    <TableCell className="text-gray-600 text-xs leading-5">
+                                      {clinicalSubtype === "historia_resumida"
+                                        ? resumenHistoria
+                                        : clinicalSubtype === "hoja_evolucion"
+                                        ? resumenEvolucion
+                                        : resumenDatos}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          const success = handleExportClinicalRecordDoc(row, clinicalSubtype);
+                                          if (success) {
+                                            toast({
+                                              title: "Documento generado",
+                                              description: `Se exportó ${getClinicalSubtypeLabel(clinicalSubtype)} para ${row.patientName}.`,
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        <Download className="w-3 h-3 mr-1" />
+                                        Exportar
+                                      </Button>
+                                      <p className="text-[10px] text-gray-400 mt-1">{row.totalConsultas} consultas</p>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {supportDocError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {supportDocError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setOpenSupportDocDialog(false)}>
+                Cancelar
+              </Button>
+              {supportPath === "administrativo" ? (
+                <Button
+                  type="button"
+                  className="bg-accent hover:bg-accent/90 text-white"
+                  onClick={handleGenerateSupportDocument}
+                  disabled={!canGenerateSupportDoc || generatingSupportDoc}
+                >
+                  {generatingSupportDoc ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Generar PDF administrativo
+                    </>
+                  )}
+                </Button>
+              ) : supportPath === "clinico" ? (
+                <div className="text-xs text-gray-500 self-center">
+                  Use los botones <span className="font-semibold">Exportar</span> de cada expediente.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card className="card-notion border-none shadow-subtle">
         <CardHeader className="pb-3">
