@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -34,6 +35,17 @@ type ReportRow = {
   tipoConsulta: string;
   resumenClinico: string;
   estado: string;
+};
+
+type AppointmentReportRow = {
+  id: string;
+  fechaMs: number;
+  fecha: string;
+  hora: string;
+  paciente: string;
+  tipoConsulta: string;
+  estado: string;
+  estadoNormalizado: string;
 };
 
 function getFechaMs(fecha: any): number {
@@ -79,6 +91,31 @@ function isCompletedStatus(estado: unknown): boolean {
   return ["completada", "completado", "completed", "finalizada", "finalizado", "atendida", "atendido"].includes(normalized);
 }
 
+function normalizarEstadoCita(estado: unknown): string {
+  const normalized = String(estado ?? "").trim().toLowerCase();
+
+  if (["completada", "completado", "completed", "finalizada", "finalizado", "realizada", "realizado", "atendida", "atendido"].includes(normalized)) {
+    return "realizada";
+  }
+
+  if (normalized === "cancelada" || normalized === "cancelado") {
+    return "cancelada";
+  }
+
+  return "programada";
+}
+
+function formatEstadoCita(estado: unknown): string {
+  const normalized = normalizarEstadoCita(estado);
+  const labels: Record<string, string> = {
+    programada: "Programada",
+    realizada: "Realizada",
+    cancelada: "Cancelada",
+  };
+
+  return labels[normalized] ?? "Programada";
+}
+
 function formatEstado(estado: unknown): string {
   const normalized = String(estado ?? "").trim().toLowerCase();
   const labels: Record<string, string> = {
@@ -118,6 +155,10 @@ function getReportFileName(start: string, end: string): string {
   return `reporte-pacientes-atendidos-${start || "inicio"}-a-${end || "fin"}.pdf`;
 }
 
+function getAppointmentsReportFileName(start: string, end: string): string {
+  return `reporte-citas-${start || "inicio"}-a-${end || "fin"}.pdf`;
+}
+
 export default function ReportsPage() {
   const { toast } = useToast();
   const [chartData, setChartData] = useState<any[]>([]);
@@ -125,6 +166,12 @@ export default function ReportsPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [appointmentRangeStart, setAppointmentRangeStart] = useState(() => {
+    const firstDay = new Date();
+    firstDay.setDate(1);
+    return toDateInputValue(firstDay);
+  });
+  const [appointmentRangeEnd, setAppointmentRangeEnd] = useState(() => toDateInputValue(new Date()));
   const [startDate, setStartDate] = useState(() => {
     const firstDay = new Date();
     firstDay.setDate(1);
@@ -223,6 +270,45 @@ export default function ReportsPage() {
     return unique.size;
   }, [reportRows]);
 
+  const appointmentRows = useMemo<AppointmentReportRow[]>(() => {
+    return appointments
+      .filter((appointment: any) => isWithinRange(appointment.fecha, appointmentRangeStart, appointmentRangeEnd))
+      .map((appointment: any) => {
+        const patient = appointment?.paciente_id ? patientById.get(appointment.paciente_id) : null;
+        const hora = String(appointment?.hora_inicio ?? appointment?.hora ?? "—");
+        const estadoNormalizado = normalizarEstadoCita(appointment.estado);
+
+        return {
+          id: String(appointment.id ?? `${appointment?.paciente_nombre ?? "cita"}-${getFechaMs(appointment.fecha)}`),
+          fechaMs: getFechaMs(appointment.fecha),
+          fecha: formatFecha(appointment.fecha),
+          hora,
+          paciente: patient ? `${patient.nombre ?? ""} ${patient.apellidos ?? ""}`.trim() : String(appointment?.paciente_nombre ?? "—"),
+          tipoConsulta: String(appointment?.tipo_consulta ?? appointment?.motivo_consulta ?? "—"),
+          estado: formatEstadoCita(appointment.estado),
+          estadoNormalizado,
+        };
+      })
+      .sort((a, b) => {
+        const order: Record<string, number> = { programada: 0, realizada: 1, cancelada: 2 };
+        const byState = order[a.estadoNormalizado] - order[b.estadoNormalizado];
+        if (byState !== 0) return byState;
+        return b.fechaMs - a.fechaMs;
+      });
+  }, [appointmentRangeEnd, appointmentRangeStart, appointments, patientById]);
+
+  const appointmentCounts = useMemo(() => {
+    return appointmentRows.reduce(
+      (acc, row) => {
+        acc[row.estadoNormalizado as keyof typeof acc] += 1;
+        return acc;
+      },
+      { programada: 0, realizada: 0, cancelada: 0 }
+    );
+  }, [appointmentRows]);
+
+  const appointmentRangeInvalid = appointmentRangeStart && appointmentRangeEnd ? appointmentRangeStart > appointmentRangeEnd : false;
+
   const hasInvalidRange = startDate && endDate ? startDate > endDate : false;
 
   const handleExportPdf = () => {
@@ -316,6 +402,90 @@ export default function ReportsPage() {
     });
   };
 
+  const handleExportAppointmentsPdf = () => {
+    if (appointmentRangeInvalid) {
+      toast({
+        title: "Rango inválido",
+        description: "La fecha inicial no puede ser mayor que la fecha final.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (appointmentRows.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay citas registradas en el periodo seleccionado.",
+      });
+      return;
+    }
+
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+
+    pdf.setTextColor(30, 58, 95);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("Reporte de citas", margin, 16);
+
+    pdf.setTextColor(71, 85, 105);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(`Periodo: ${formatPeriodo(appointmentRangeStart, appointmentRangeEnd)}`, margin, 22);
+    pdf.text(`Programadas: ${appointmentCounts.programada}`, margin, 27);
+    pdf.text(`Realizadas: ${appointmentCounts.realizada}`, margin, 32);
+    pdf.text(`Canceladas: ${appointmentCounts.cancelada}`, margin, 37);
+
+    autoTable(pdf, {
+      startY: 43,
+      head: [["Fecha", "Hora", "Paciente", "Tipo de consulta", "Estado"]],
+      body: appointmentRows.map((row) => [row.fecha, row.hora, row.paciente, row.tipoConsulta, row.estado]),
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 8,
+        cellPadding: 2.5,
+        valign: "top",
+        textColor: [51, 65, 85],
+      },
+      headStyles: {
+        fillColor: [45, 106, 159],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: {
+        0: { cellWidth: 28 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 60 },
+        3: { cellWidth: 70 },
+        4: { cellWidth: 30 },
+      },
+      margin: { top: 43, left: margin, right: margin, bottom: 16 },
+      didDrawPage: (data) => {
+        pdf.setDrawColor(226, 232, 240);
+        pdf.line(margin, 40, pageW - margin, 40);
+        pdf.setTextColor(148, 163, 184);
+        pdf.setFontSize(8);
+        const pageNumber = pdf.getNumberOfPages();
+        pdf.text(`Medi Notes · Página ${pageNumber}`, margin, pageH - 8);
+        pdf.text(`Generado el ${new Date().toLocaleDateString("es-CR")}`, pageW - margin - 38, pageH - 8);
+        data.settings.margin.top = 43;
+      },
+    });
+
+    pdf.save(getAppointmentsReportFileName(appointmentRangeStart, appointmentRangeEnd));
+
+    toast({
+      title: "Reporte generado",
+      description: "El documento PDF se descargó correctamente.",
+    });
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -336,28 +506,34 @@ export default function ReportsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary" />
-            Reporte de pacientes atendidos
+            Reporte de citas por estado
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-4 items-end">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Fecha inicial</label>
-            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            <Input type="date" value={appointmentRangeStart} onChange={(event) => setAppointmentRangeStart(event.target.value)} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Fecha final</label>
-            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+            <Input type="date" value={appointmentRangeEnd} onChange={(event) => setAppointmentRangeEnd(event.target.value)} />
           </div>
           <div className="space-y-2 lg:text-right">
             <p className="text-sm text-gray-500">Periodo seleccionado</p>
-            <p className="text-sm font-semibold text-gray-900">{formatPeriodo(startDate, endDate)}</p>
+            <p className="text-sm font-semibold text-gray-900">{formatPeriodo(appointmentRangeStart, appointmentRangeEnd)}</p>
           </div>
         </CardContent>
-        {hasInvalidRange && (
+        {appointmentRangeInvalid && (
           <div className="px-6 pb-6 text-sm text-rose-600">
             La fecha inicial no puede ser mayor que la fecha final.
           </div>
         )}
+        <div className="px-6 pb-6">
+          <Button variant="outline" onClick={handleExportAppointmentsPdf} disabled={loading || appointmentRangeInvalid || appointmentRows.length === 0}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar reporte de citas
+          </Button>
+        </div>
       </Card>
 
       {loading ? (
@@ -367,6 +543,85 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="card-notion border-none shadow-subtle">
+              <CardContent className="p-6 space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Programadas</p>
+                <p className="text-3xl font-bold text-gray-900">{appointmentCounts.programada}</p>
+                <p className="text-sm text-gray-500">Citas agendadas dentro del periodo.</p>
+              </CardContent>
+            </Card>
+            <Card className="card-notion border-none shadow-subtle">
+              <CardContent className="p-6 space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Realizadas</p>
+                <p className="text-3xl font-bold text-gray-900">{appointmentCounts.realizada}</p>
+                <p className="text-sm text-gray-500">Citas completadas o atendidas.</p>
+              </CardContent>
+            </Card>
+            <Card className="card-notion border-none shadow-subtle">
+              <CardContent className="p-6 space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Canceladas</p>
+                <p className="text-3xl font-bold text-gray-900">{appointmentCounts.cancelada}</p>
+                <p className="text-sm text-gray-500">Citas canceladas en el periodo.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="card-notion p-0 overflow-hidden border-none shadow-subtle">
+            <CardHeader className="p-6 pb-4 flex flex-row items-center justify-between gap-4">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <Users className="w-5 h-5 text-accent" />
+                Listado de citas
+              </CardTitle>
+              <Badge className="bg-gray-50 text-gray-700 border-gray-100">{appointmentRows.length} registros</Badge>
+            </CardHeader>
+            <CardContent className="p-0">
+              {appointmentRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <Users className="w-12 h-12 mb-3 opacity-20" />
+                  <p className="font-medium">No hay citas registradas en el periodo seleccionado.</p>
+                  <p className="text-sm mt-1">Ajuste las fechas para generar un reporte con datos.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-gray-50/80">
+                      <TableRow>
+                        <TableHead className="font-bold py-4">Fecha</TableHead>
+                        <TableHead className="font-bold py-4">Hora</TableHead>
+                        <TableHead className="font-bold py-4">Paciente</TableHead>
+                        <TableHead className="font-bold py-4">Tipo de consulta</TableHead>
+                        <TableHead className="font-bold py-4">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {appointmentRows.map((row) => (
+                        <TableRow key={row.id} className="hover:bg-primary-light/30 transition-colors">
+                          <TableCell className="font-medium text-gray-700 whitespace-nowrap">{row.fecha}</TableCell>
+                          <TableCell className="text-gray-600 whitespace-nowrap">{row.hora}</TableCell>
+                          <TableCell className="font-semibold text-gray-900">{row.paciente}</TableCell>
+                          <TableCell className="text-gray-600">{row.tipoConsulta}</TableCell>
+                          <TableCell>
+                            <Badge
+                              className={cn(
+                                "capitalize px-2.5 py-0.5 text-[10px] border-transparent",
+                                row.estadoNormalizado === "programada" && "bg-amber-50 text-amber-700",
+                                row.estadoNormalizado === "realizada" && "bg-emerald-50 text-emerald-700",
+                                row.estadoNormalizado === "cancelada" && "bg-rose-50 text-rose-700"
+                              )}
+                            >
+                              {row.estado}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="card-notion border-none shadow-subtle">
               <CardContent className="p-6 space-y-2">

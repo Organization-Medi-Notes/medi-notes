@@ -171,8 +171,7 @@ export const medicalRecordService = {
     try {
       const q = query(
         collection(this.db, "expedientes"),
-        where("medico_id", "==", getMedicoId()),
-        orderBy("creado_en", "desc")
+        where("medico_id", "==", getMedicoId())
       );
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
