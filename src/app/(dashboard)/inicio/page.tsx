@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Users,
   CalendarCheck,
@@ -17,7 +19,8 @@ import {
   CalendarDays,
   ArrowLeft,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Download
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +43,7 @@ import {
 } from "../calendario/components/CitaFormFiller";
 
 type Period = "dia" | "semana" | "mes" | "historico";
+type ClinicalSupportSubtype = "historia_resumida" | "hoja_evolucion" | "datos";
 
 function capitalizeFirst(value: string) {
   if (!value) return value;
@@ -222,6 +226,35 @@ function getMedicalRecordPatientId(record: any) {
   return String(record?.paciente_id ?? record?.pacienteId ?? "").trim();
 }
 
+function getMedicalRecordSummaryDate(record: any): Date | null {
+  return getDateFromFirestore(record?.fecha_consulta ?? record?.fechaConsulta ?? record?.actualizado_en ?? record?.creado_en);
+}
+
+function formatDateTime(value: any) {
+  const date = getDateFromFirestore(value);
+  if (!date) return "—";
+  return date.toLocaleDateString("es-CR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function getClinicalSubtypeLabel(subtype: ClinicalSupportSubtype) {
+  if (subtype === "historia_resumida") return "Historia clínica resumida";
+  if (subtype === "hoja_evolucion") return "Hoja de evolución";
+  return "Datos";
+}
+
+function toTextArray(value: any): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
+}
+
 function getStatusLabel(status: string) {
   if (status === "confirmada") return "confirmada";
   if (status === "pendiente") return "pendiente";
@@ -325,6 +358,11 @@ export default function DashboardPage() {
   const [openFillForm, setOpenFillForm] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
   const [savingFormResponse, setSavingFormResponse] = useState(false);
+  const [openSupportDocDialog, setOpenSupportDocDialog] = useState(false);
+  const [supportSubtype, setSupportSubtype] = useState<ClinicalSupportSubtype | null>(null);
+  const [selectedSupportPatientId, setSelectedSupportPatientId] = useState("");
+  const [supportDocError, setSupportDocError] = useState("");
+  const [generatingSupportDoc, setGeneratingSupportDoc] = useState(false);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -389,6 +427,37 @@ export default function DashboardPage() {
     : Math.round((operationalSummary.citasCanceladas / operationalSummary.totalCitas) * 100);
 
   const hasOperationalData = operationalSummary.totalCitas > 0 || operationalSummary.expedientesPeriodo > 0;
+
+  const recordPatientIds = Array.from(
+    new Set(medicalRecords.map((record) => getMedicalRecordPatientId(record)).filter(Boolean))
+  );
+
+  const patientsById = new Map(
+    patients.map((patient) => [String(patient?.id ?? "").trim(), patient])
+  );
+
+  const patientsWithRecords = recordPatientIds
+    .map((patientId) => {
+      const patient = patientsById.get(patientId);
+      return {
+        id: patientId,
+        patient,
+        name: patient ? getPatientName(patient) : `Paciente ${patientId}`,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const selectedSupportPatient = patientsWithRecords.find((item) => item.id === selectedSupportPatientId) ?? null;
+
+  const selectedPatientRecords = medicalRecords
+    .filter((record) => getMedicalRecordPatientId(record) === selectedSupportPatientId)
+    .sort((a, b) => {
+      const first = getMedicalRecordSummaryDate(a)?.getTime() ?? 0;
+      const second = getMedicalRecordSummaryDate(b)?.getTime() ?? 0;
+      return second - first;
+    });
+
+  const canGenerateSupportDoc = Boolean(supportSubtype && selectedSupportPatientId && patientsWithRecords.length > 0);
 
   const todayAppointments = allAppointments
     .filter((apt) => {
@@ -514,6 +583,191 @@ export default function DashboardPage() {
     }
   }
 
+  function handleOpenSupportDocDialog() {
+    setSupportDocError("");
+    setSupportSubtype(null);
+    setSelectedSupportPatientId("");
+    setOpenSupportDocDialog(true);
+  }
+
+  function handleSelectSupportSubtype(subtype: ClinicalSupportSubtype) {
+    setSupportSubtype(subtype);
+    setSelectedSupportPatientId("");
+    setSupportDocError("");
+  }
+
+  function handleGenerateSupportDocument() {
+    if (!supportSubtype || !selectedSupportPatientId) {
+      setSupportDocError("Seleccione un subtipo clínico y un paciente.");
+      return;
+    }
+
+    if (!selectedSupportPatient) {
+      setSupportDocError("No se pudo resolver la información del paciente seleccionado.");
+      return;
+    }
+
+    setSupportDocError("");
+    setGeneratingSupportDoc(true);
+
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const margin = 16;
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const subtypeLabel = getClinicalSubtypeLabel(supportSubtype);
+      const generatedAt = new Date().toLocaleDateString("es-CR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      const patient = selectedSupportPatient.patient;
+      const patientName = selectedSupportPatient.name;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.setTextColor(30, 58, 95);
+      pdf.text("Documento de apoyo clínico", margin, 18);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(71, 85, 105);
+      pdf.text(`Paciente: ${patientName}`, margin, 24);
+      pdf.text(`Tipo: ${subtypeLabel}`, margin, 29);
+      pdf.text(`Generado el: ${generatedAt}`, margin, 34);
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, 38, pageW - margin, 38);
+
+      if (supportSubtype === "historia_resumida") {
+        const latestRecordDate = getMedicalRecordSummaryDate(selectedPatientRecords[0]);
+        const fallbackDate = latestRecordDate ?? getDateFromFirestore(patient?.actualizado_en ?? patient?.creado_en);
+        const introDate = fallbackDate ? fallbackDate.toLocaleDateString("es-CR") : "—";
+
+        const antecedentesPersonales = String(patient?.antecedentesPersonales ?? patient?.antecedentes_personales ?? "—");
+        const antecedentesFamiliares = String(patient?.antecedentesFamiliares ?? patient?.antecedentes_familiares ?? "—");
+        const alergias = toTextArray(patient?.alergias);
+        const medicamentos = toTextArray(patient?.medicamentosActuales ?? patient?.medicamentos_actuales);
+
+        autoTable(pdf, {
+          startY: 44,
+          head: [["Sección", "Contenido", "Fecha introducción"]],
+          body: [
+            ["Antecedentes personales", antecedentesPersonales || "—", introDate],
+            ["Antecedentes familiares", antecedentesFamiliares || "—", introDate],
+            ["Alergias", alergias.length > 0 ? alergias.join(", ") : "—", introDate],
+            ["Medicamentos actuales", medicamentos.length > 0 ? medicamentos.join(", ") : "—", introDate],
+          ],
+          theme: "grid",
+          styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+          headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+          columnStyles: {
+            0: { cellWidth: 48 },
+            1: { cellWidth: 90 },
+            2: { cellWidth: 34 },
+          },
+          margin: { left: margin, right: margin },
+        });
+      }
+
+      if (supportSubtype === "hoja_evolucion") {
+        const rows = selectedPatientRecords.map((record: any) => {
+          const fecha = formatDateTime(record?.fecha_consulta ?? record?.fechaConsulta ?? record?.creado_en);
+          const motivo = String(record?.motivo_consulta ?? record?.motivoConsulta ?? "—");
+          const diagnostico = String(record?.diagnostico_principal ?? record?.diagnostico ?? "—");
+          const tratamiento = String(record?.plan_tratamiento ?? record?.tratamiento ?? "—");
+          return [fecha, motivo, diagnostico, tratamiento];
+        });
+
+        autoTable(pdf, {
+          startY: 44,
+          head: [["Fecha", "Consulta", "Diagnóstico", "Tratamiento"]],
+          body: rows.length > 0 ? rows : [["—", "Sin consultas registradas", "—", "—"]],
+          theme: "grid",
+          styles: { font: "helvetica", fontSize: 8.5, textColor: [51, 65, 85] },
+          headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+          columnStyles: {
+            0: { cellWidth: 24 },
+            1: { cellWidth: 48 },
+            2: { cellWidth: 52 },
+            3: { cellWidth: 52 },
+          },
+          margin: { left: margin, right: margin },
+        });
+      }
+
+      if (supportSubtype === "datos") {
+        const fullName = patient
+          ? `${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim() || patientName
+          : patientName;
+
+        const demographics = [
+          ["Nombre", fullName],
+          ["Identificación", String(patient?.cedula ?? "—")],
+          ["Sexo", String(patient?.sexo ?? "—")],
+          ["Edad", patient?.edad ? `${patient.edad} años` : "—"],
+          ["Fecha de nacimiento", formatDateTime(patient?.fechaNacimiento ?? patient?.fecha_nacimiento)],
+          ["Número de expediente", String(patient?.numero_expediente ?? "—")],
+        ];
+
+        const contact = [
+          ["Teléfono", String(patient?.telefono ?? "—")],
+          ["Email", String(patient?.email ?? "—")],
+          ["Dirección", String(patient?.direccion ?? "—")],
+          ["Contacto emergencia", String(patient?.contactoEmergenciaNombre ?? patient?.contacto_emergencia_nombre ?? "—")],
+          ["Tel. emergencia", String(patient?.contactoEmergenciaTelefono ?? patient?.contacto_emergencia_telefono ?? "—")],
+        ];
+
+        autoTable(pdf, {
+          startY: 44,
+          head: [["Dato demográfico", "Valor"]],
+          body: demographics,
+          theme: "grid",
+          styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+          headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
+          columnStyles: {
+            0: { cellWidth: 64 },
+            1: { cellWidth: 110 },
+          },
+          margin: { left: margin, right: margin },
+        });
+
+        const startY = (pdf as any).lastAutoTable?.finalY ? (pdf as any).lastAutoTable.finalY + 10 : 110;
+
+        autoTable(pdf, {
+          startY,
+          head: [["Dato de contacto", "Valor"]],
+          body: contact,
+          theme: "grid",
+          styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85] },
+          headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255] },
+          columnStyles: {
+            0: { cellWidth: 64 },
+            1: { cellWidth: 110 },
+          },
+          margin: { left: margin, right: margin },
+        });
+      }
+
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Medi Notes · Página ${i} de ${totalPages}`, margin, pageH - 8);
+      }
+
+      pdf.save(`documento-apoyo-${selectedSupportPatientId}-${supportSubtype}.pdf`);
+      setOpenSupportDocDialog(false);
+    } catch (error) {
+      console.error("Error generando documento de apoyo:", error);
+      setSupportDocError("No se pudo generar el documento. Intente nuevamente.");
+    } finally {
+      setGeneratingSupportDoc(false);
+    }
+  }
+
   function getAssignmentStatusClass(status: string) {
     if (status === "completed") return "bg-emerald-50 text-emerald-700 border-emerald-100";
     if (status === "draft") return "bg-amber-50 text-amber-700 border-amber-100";
@@ -633,7 +887,7 @@ export default function DashboardPage() {
 
       {!loading && (
         <div className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
@@ -641,7 +895,13 @@ export default function DashboardPage() {
               </h2>
               <p className="text-sm text-gray-500 mt-1">Información operativa organizada para el período seleccionado.</p>
             </div>
-            <Badge className="bg-gray-50 text-gray-700 border-gray-100">{shortPeriodLabel}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-gray-50 text-gray-700 border-gray-100">{shortPeriodLabel}</Badge>
+              <Button variant="outline" className="h-9 text-xs" onClick={handleOpenSupportDocDialog}>
+                <FileText className="w-4 h-4 mr-2" />
+                Generar documento de apoyo
+              </Button>
+            </div>
           </div>
 
           {!hasOperationalData ? (
@@ -705,6 +965,126 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+
+      <Dialog
+        open={openSupportDocDialog}
+        onOpenChange={(open) => {
+          setOpenSupportDocDialog(open);
+          if (!open) {
+            setSupportSubtype(null);
+            setSelectedSupportPatientId("");
+            setSupportDocError("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Generar documento de apoyo</DialogTitle>
+            <DialogDescription>
+              Tipo: Clínico · Alcance: Por paciente. Seleccione un subtipo y luego el paciente con expediente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Subtipo clínico</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: "historia_resumida" as ClinicalSupportSubtype, label: "Historia clínica resumida" },
+                  { id: "hoja_evolucion" as ClinicalSupportSubtype, label: "Hoja de evolución" },
+                  { id: "datos" as ClinicalSupportSubtype, label: "Datos" },
+                ].map((option) => (
+                  <Button
+                    key={option.id}
+                    type="button"
+                    variant={supportSubtype === option.id ? "default" : "outline"}
+                    className={cn("h-auto py-3 text-xs text-left justify-start", supportSubtype === option.id && "bg-accent hover:bg-accent/90 text-white")}
+                    onClick={() => handleSelectSupportSubtype(option.id)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {supportSubtype && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Pacientes con expediente</p>
+                {patientsWithRecords.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
+                    No hay pacientes con expediente disponible.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {patientsWithRecords.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSupportPatientId(item.id);
+                          setSupportDocError("");
+                        }}
+                        className={cn(
+                          "text-left rounded-lg border px-3 py-2 transition-colors",
+                          selectedSupportPatientId === item.id
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-200 hover:bg-gray-50"
+                        )}
+                      >
+                        <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500">ID expediente: {item.id}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {supportSubtype && selectedSupportPatient && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+                Se generará: <span className="font-semibold">{getClinicalSubtypeLabel(supportSubtype)}</span> para <span className="font-semibold">{selectedSupportPatient.name}</span>.
+                {supportSubtype === "hoja_evolucion" && (
+                  <span className="block text-xs mt-1 text-blue-700">Consultas encontradas: {selectedPatientRecords.length}</span>
+                )}
+              </div>
+            )}
+
+            {supportDocError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {supportDocError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpenSupportDocDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="bg-accent hover:bg-accent/90 text-white"
+                onClick={handleGenerateSupportDocument}
+                disabled={!canGenerateSupportDoc || generatingSupportDoc}
+              >
+                {generatingSupportDoc ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Generar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
