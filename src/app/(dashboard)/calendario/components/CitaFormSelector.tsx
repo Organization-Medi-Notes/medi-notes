@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormularioClinico } from "@/lib/types/formulario.types";
 
+type CurrentForm = FormularioClinico & {
+  id: string;
+  activo?: boolean;
+  isCurrentVersion?: boolean;
+  estadoFormulario?: "activo" | "plantilla";
+};
+
 interface CitaFormSelectorProps {
   forms: FormularioClinico[];
   assignedFormIds: string[];
@@ -14,7 +21,15 @@ interface CitaFormSelectorProps {
 
 export function CitaFormSelector({ forms, assignedFormIds, onAssignForm, disabled }: CitaFormSelectorProps) {
   const availableForms = useMemo(
-    () => forms.filter((form): form is FormularioClinico & { id: string } => !!form.id && !assignedFormIds.includes(form.id)),
+    () =>
+      forms.filter((form): form is CurrentForm => {
+        if (!form.id) return false;
+        if (assignedFormIds.includes(form.id)) return false;
+        if (form.activo === false) return false;
+        if (form.estadoFormulario === "plantilla") return false;
+        if (form.isCurrentVersion === false) return false;
+        return true;
+      }),
     [forms, assignedFormIds]
   );
   const [selectedFormId, setSelectedFormId] = useState<string>(availableForms[0]?.id ?? "");
@@ -63,12 +78,13 @@ export function CitaFormSelector({ forms, assignedFormIds, onAssignForm, disable
       </div>
 
       {availableForms.length === 0 && (
-        <p className="text-sm text-gray-500">No hay formularios activos disponibles para asignar.</p>
+        <p className="text-sm text-gray-500">No hay formularios activos y vigentes disponibles para asignar.</p>
       )}
 
       {selectedForm && (
         <div className="rounded-xl border border-gray-200 bg-slate-50 p-3 text-sm text-gray-600">
           <p className="font-medium text-gray-900">{selectedForm.nombre}</p>
+          <p className="text-xs text-emerald-700 mt-1">Etiquetas: Activo | Vigente</p>
           <p>{selectedForm.descripcion}</p>
         </div>
       )}

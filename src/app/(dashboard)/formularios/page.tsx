@@ -12,9 +12,7 @@ import { UseTemplateModal } from "./components/UseTemplateModal";
 import { FormVersionHistoryModal } from "./components/FormVersionHistoryModal";
 import { printFormularioClinico } from "@/lib/formulario-print";
 import { formularioService } from "@/lib/firebase/formularioService";
-import { auth, db } from "@/lib/firebase/config";
 import { FormularioClinico } from "@/lib/types/formulario.types";
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 
 type VersionedForm = FormularioClinico & {
   baseFormularioId?: string;
@@ -131,9 +129,11 @@ export default function FormulariosPage() {
       setFormularios(currentManageable.filter((formulario) => formulario.estadoFormulario !== "plantilla"));
       setPlantillas(currentManageable.filter((formulario) => formulario.estadoFormulario === "plantilla"));
       setFormulariosArchivados(currentArchived);
+      return { manageableRows, archivedRows };
     } catch (error) {
       console.error("Error cargando formularios:", error);
       toast({ title: "Error", description: "No se pudieron cargar los formularios.", variant: "destructive" });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -252,96 +252,26 @@ export default function FormulariosPage() {
     const { sourceForm, payload } = params;
     if (!sourceForm.id) throw new Error("El formulario no tiene identificador.");
 
-    const medicoId = auth.currentUser?.uid;
-    if (!medicoId) throw new Error("No hay un usuario autenticado.");
-
-    const source = sourceForm as VersionedForm;
-    const baseFormularioId = resolveBaseId(source);
-    const nextVersion = (source.version ?? 1) + 1;
-
-    const currentVersionsQuery = query(
-      collection(db, "formularios_clinicos"),
-      where("creado_por", "==", medicoId),
-      where("baseFormularioId", "==", baseFormularioId),
-      where("isCurrentVersion", "==", true)
-    );
-
-    const currentVersions = await getDocs(currentVersionsQuery);
-    await Promise.all(currentVersions.docs.map((row) => updateDoc(row.ref, { isCurrentVersion: false })));
-
-    await updateDoc(doc(db, "formularios_clinicos", sourceForm.id), {
-      isCurrentVersion: false,
-      modificado_en: serverTimestamp(),
-    });
-
-    await addDoc(collection(db, "formularios_clinicos"), {
-      ...payload,
-      version: nextVersion,
-      activo: sourceForm.activo !== false,
-      baseFormularioId,
-      previousVersionId: sourceForm.id,
-      isCurrentVersion: true,
-      creado_por: medicoId,
-      creado_en: serverTimestamp(),
-      modificado_en: serverTimestamp(),
+    await formularioService.createVersionAtomic({
+      sourceFormId: sourceForm.id,
+      payload,
     });
   }, []);
 
   const handleRestoreVersion = useCallback(async (version: VersionedForm) => {
-    const medicoId = auth.currentUser?.uid;
-    if (!medicoId) throw new Error("No hay un usuario autenticado.");
     if (!version.id) throw new Error("La versi\u00f3n no tiene identificador.");
 
-    const baseFormularioId = resolveBaseId(version);
-
-    const allVersionsQuery = query(
-      collection(db, "formularios_clinicos"),
-      where("creado_por", "==", medicoId),
-      where("baseFormularioId", "==", baseFormularioId)
-    );
-
-    const allSnap = await getDocs(allVersionsQuery);
-    const maxVersion = allSnap.docs.reduce((max, d) => Math.max(max, (d.data().version ?? 1)), 0);
-    const nextVersion = maxVersion + 1;
-
-    await Promise.all(
-      allSnap.docs
-        .filter((d) => d.data().isCurrentVersion === true)
-        .map((d) => updateDoc(d.ref, { isCurrentVersion: false }))
-    );
-
-    if (!version.baseFormularioId) {
-      await updateDoc(doc(db, "formularios_clinicos", version.id), {
-        isCurrentVersion: false,
-        modificado_en: serverTimestamp(),
-      });
-    }
-
-    await addDoc(collection(db, "formularios_clinicos"), {
-      nombre: version.nombre,
-      descripcion: version.descripcion,
-      especialidad: version.especialidad,
-      campos: version.campos.map((c) => ({ ...c })),
-      estadoFormulario: version.estadoFormulario ?? "activo",
-      version: nextVersion,
-      activo: version.activo !== false,
-      baseFormularioId,
-      previousVersionId: version.id,
-      isCurrentVersion: true,
-      creado_por: medicoId,
-      creado_en: serverTimestamp(),
-      modificado_en: serverTimestamp(),
+    const restoreResult = await formularioService.restoreVersionAtomic(version.id);
+    toast({
+      title: "Versión restaurada",
+      description: `El formulario fue restaurado a v${restoreResult.restoredFromVersion} como una nueva entrada (v${restoreResult.version}).`,
     });
 
-    toast({ title: "Versi\u00f3n restaurada", description: `El formulario fue restaurado a v${version.version} como una nueva entrada (v${nextVersion}).` });
-    await loadFormularios();
-
-    const updatedManageable = allManageableForms;
-    const updatedArchived = allArchivedForms;
+    const refreshed = await loadFormularios();
     if (historyForm) {
-      refreshHistory(historyForm, updatedManageable, updatedArchived);
+      refreshHistory(historyForm, refreshed?.manageableRows ?? [], refreshed?.archivedRows ?? []);
     }
-  }, [allArchivedForms, allManageableForms, historyForm, loadFormularios, refreshHistory, toast]);
+  }, [historyForm, loadFormularios, refreshHistory, toast]);
 
   const displayFormularios = showArchived ? formulariosArchivados : formularios;
 
