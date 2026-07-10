@@ -23,7 +23,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { appointmentService, patientService } from "@/lib/firebase/db-service";
+import { appointmentService, medicalRecordService, patientService } from "@/lib/firebase/db-service";
 import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioService";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico } from "@/lib/types/formulario.types";
@@ -214,6 +214,14 @@ function getPatientName(patient: any) {
   return patient.nombre ?? patient.nombre_completo ?? patient.name ?? "Paciente sin nombre";
 }
 
+function getMedicalRecordDate(record: any) {
+  return getDateFromFirestore(record?.fecha_consulta ?? record?.fechaConsulta ?? record?.creado_en);
+}
+
+function getMedicalRecordPatientId(record: any) {
+  return String(record?.paciente_id ?? record?.pacienteId ?? "").trim();
+}
+
 function getStatusLabel(status: string) {
   if (status === "confirmada") return "confirmada";
   if (status === "pendiente") return "pendiente";
@@ -304,6 +312,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
+  const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [period, setPeriod] = useState<Period>("mes");
   const [referenceDate, setReferenceDate] = useState(new Date());
@@ -320,14 +329,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [todayApts, allApts, pts] = await Promise.all([
+        const [todayApts, allApts, pts, records] = await Promise.all([
           appointmentService.getToday(),
           appointmentService.getAll(),
-          patientService.getAll()
+          patientService.getAll(),
+          medicalRecordService.getAll()
         ]);
         setAppointments(todayApts);
         setAllAppointments(allApts);
         setPatients(pts);
+        setMedicalRecords(records);
       } catch (error) {
         console.error("Error cargando dashboard:", error);
       } finally {
@@ -345,6 +356,39 @@ export default function DashboardPage() {
   const periodAppointments = allAppointments.filter((apt) =>
     isDateInPeriod(getDateFromFirestore(apt.fecha), period, referenceDate)
   );
+
+  const periodMedicalRecords = medicalRecords.filter((record) =>
+    isDateInPeriod(getMedicalRecordDate(record), period, referenceDate)
+  );
+
+  const periodUniquePatientIds = new Set(
+    periodAppointments
+      .map((apt) => String(apt?.paciente_id ?? apt?.pacienteId ?? "").trim())
+      .filter(Boolean)
+  );
+
+  periodMedicalRecords.forEach((record) => {
+    const patientId = getMedicalRecordPatientId(record);
+    if (patientId) periodUniquePatientIds.add(patientId);
+  });
+
+  const operationalSummary = {
+    totalCitas: periodAppointments.length,
+    citasProgramadas: periodAppointments.filter((apt) => getAppointmentStatus(apt) === "programada").length,
+    citasRealizadas: periodAppointments.filter((apt) => {
+      const status = getAppointmentStatus(apt);
+      return status === "completada" || status === "completado" || status === "confirmada";
+    }).length,
+    citasCanceladas: periodAppointments.filter((apt) => getAppointmentStatus(apt) === "cancelada").length,
+    expedientesPeriodo: periodMedicalRecords.length,
+    pacientesConActividad: periodUniquePatientIds.size,
+  };
+
+  const cancellationRate = operationalSummary.totalCitas === 0
+    ? 0
+    : Math.round((operationalSummary.citasCanceladas / operationalSummary.totalCitas) * 100);
+
+  const hasOperationalData = operationalSummary.totalCitas > 0 || operationalSummary.expedientesPeriodo > 0;
 
   const todayAppointments = allAppointments
     .filter((apt) => {
@@ -584,6 +628,81 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {metrics.map((m, idx) => <MetricCard key={idx} {...m} />)}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Resumen documental
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Información operativa organizada para el período seleccionado.</p>
+            </div>
+            <Badge className="bg-gray-50 text-gray-700 border-gray-100">{shortPeriodLabel}</Badge>
+          </div>
+
+          {!hasOperationalData ? (
+            <div className="card-notion p-8 text-center text-gray-400">
+              <FileText className="w-10 h-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">No hay información operativa para este período.</p>
+              <p className="text-sm mt-1">Registre citas o expedientes para visualizar el resumen documental.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="card-notion p-6 space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Actividad de citas</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Programadas</span>
+                    <Badge className="bg-amber-50 text-amber-700 border-amber-100">{operationalSummary.citasProgramadas}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Realizadas</span>
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">{operationalSummary.citasRealizadas}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Canceladas</span>
+                    <Badge className="bg-rose-50 text-rose-700 border-rose-100">{operationalSummary.citasCanceladas}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card-notion p-6 space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Información clínica documental</h3>
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span>Expedientes registrados</span>
+                    <span className="font-semibold text-gray-900">{operationalSummary.expedientesPeriodo}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Pacientes con actividad</span>
+                    <span className="font-semibold text-gray-900">{operationalSummary.pacientesConActividad}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card-notion p-6 space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Indicadores operativos</h3>
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span>Total de citas</span>
+                    <span className="font-semibold text-gray-900">{operationalSummary.totalCitas}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Ingresos estimados</span>
+                    <span className="font-semibold text-gray-900">₡{periodRevenue.toLocaleString("es-CR")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Tasa de cancelación</span>
+                    <span className="font-semibold text-gray-900">{cancellationRate}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
