@@ -110,7 +110,7 @@ export default function CalendarPage() {
   async function loadFormularios() {
     try {
       setLoadingFormularios(true);
-      const data = await formularioService.getAll();
+      const data = await formularioService.getCurrentActive();
       setAvailableFormularios(data);
     } catch (error) {
       console.error("Error cargando formularios:", error);

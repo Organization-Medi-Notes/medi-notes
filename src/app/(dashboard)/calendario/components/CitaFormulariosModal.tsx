@@ -95,7 +95,7 @@ export function CitaFormulariosModal({
 
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
               <h3 className="text-sm font-semibold text-gray-900">Agregar formulario</h3>
-              <p className="text-sm text-gray-500">Seleccione un formulario activo para asociarlo a la cita.</p>
+              <p className="text-sm text-gray-500">Seleccione un formulario activo y vigente para asociarlo a la cita.</p>
               <div className="mt-4">
                 <CitaFormSelector
                   forms={availableForms}
