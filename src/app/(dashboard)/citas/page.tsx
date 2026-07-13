@@ -22,9 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { appointmentService } from "@/lib/firebase/db-service";
+import { appointmentService, patientService } from "@/lib/firebase/db-service";
 
 type AppointmentForm = {
+  pacienteId: string;
   paciente_nombre: string;
   paciente_correo: string;
   tipo_consulta: string;
@@ -37,6 +38,7 @@ type AppointmentForm = {
 };
 
 const emptyAppointment: AppointmentForm = {
+  pacienteId: "",
   paciente_nombre: "",
   paciente_correo: "",
   tipo_consulta: "Primera cita",
@@ -96,6 +98,7 @@ window.open(gmailUrl, "_blank");
 export default function AppointmentsPage() {
   const [validationMessage, setValidationMessage] = useState("");
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -115,6 +118,7 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     loadData();
+    loadPatients();
   }, []);
 
   async function loadData() {
@@ -126,6 +130,15 @@ export default function AppointmentsPage() {
       console.error("Error cargando citas:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPatients() {
+    try {
+      const data = await patientService.getAll();
+      setPatients(data.filter((p: any) => p.activo !== false));
+    } catch (error) {
+      console.error("Error cargando pacientes:", error);
     }
   }
 
@@ -192,6 +205,11 @@ export default function AppointmentsPage() {
   }
 
   async function handleCreateAppointment() {
+    if (!newAppointment.pacienteId) {
+      setValidationMessage("Seleccione un paciente registrado.");
+      return;
+    }
+
     if (
       !newAppointment.paciente_nombre ||
       !newAppointment.fecha ||
@@ -238,6 +256,7 @@ export default function AppointmentsPage() {
     setValidationMessage("");
 
     setEditAppointment({
+      pacienteId: apt.pacienteId || "",
       paciente_nombre: apt.paciente_nombre || "",
       paciente_correo: apt.paciente_correo || apt.correo || apt.email || "",
       tipo_consulta: apt.tipo_consulta || "Primera cita",
@@ -255,6 +274,11 @@ export default function AppointmentsPage() {
   async function handleUpdateAppointment() {
     if (!selectedAppointment?.id) {
       setValidationMessage("La cita no tiene identificador. No se puede actualizar.");
+      return;
+    }
+
+    if (!editAppointment.pacienteId) {
+      setValidationMessage("Seleccione un paciente registrado.");
       return;
     }
 
@@ -378,6 +402,7 @@ export default function AppointmentsPage() {
           title="Crear nueva cita"
           appointment={newAppointment}
           setAppointment={setNewAppointment}
+          patients={patients}
           onClose={() => {
             setValidationMessage("");
             setOpenNewAppointment(false);
@@ -395,6 +420,7 @@ export default function AppointmentsPage() {
           title="Editar cita"
           appointment={editAppointment}
           setAppointment={setEditAppointment}
+          patients={patients}
           onClose={() => {
             setValidationMessage("");
             setOpenEditAppointment(false);
@@ -542,6 +568,7 @@ export default function AppointmentsPage() {
                           onClick={() => {
                             setActionsOpenId(null);
                             abrirCorreoNotificacionCita({
+                              pacienteId: apt.pacienteId || "",
                               paciente_nombre: apt.paciente_nombre || "",
                               paciente_correo: apt.paciente_correo || apt.correo || apt.email || "",
                               tipo_consulta: apt.tipo_consulta || "Consulta",
@@ -595,6 +622,7 @@ function AppointmentModal({
   saving,
   validationMessage,
   setValidationMessage,
+  patients,
 }: {
   title: string;
   appointment: AppointmentForm;
@@ -605,9 +633,11 @@ function AppointmentModal({
   saving: boolean;
   validationMessage: string;
   setValidationMessage: (message: string) => void;
+  patients: any[];
 }) {
   const disabled =
     saving ||
+    !appointment.pacienteId ||
     !appointment.paciente_nombre ||
     !appointment.fecha ||
     !appointment.hora_inicio;
@@ -648,16 +678,31 @@ function AppointmentModal({
             </div>
           )}
 
-          <Input
-            placeholder="Nombre del paciente"
-            value={appointment.paciente_nombre}
-            onChange={(e) =>
+          <select
+            className="w-full border rounded-lg p-3"
+            value={appointment.pacienteId}
+            onChange={(e) => {
+              const pacienteSeleccionado = patients.find(
+                (p) => p.id === e.target.value
+              );
+
               setAppointment({
                 ...appointment,
-                paciente_nombre: e.target.value,
-              })
-            }
-          />
+                pacienteId: pacienteSeleccionado?.id || "",
+                paciente_nombre: pacienteSeleccionado
+                  ? `${pacienteSeleccionado.nombre} ${pacienteSeleccionado.apellidos}`
+                  : "",
+                paciente_correo: pacienteSeleccionado?.email || "",
+              });
+            }}
+          >
+            <option value="">Seleccione un paciente</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} {p.apellidos}
+              </option>
+            ))}
+          </select>
 
           <Input
             type="email"

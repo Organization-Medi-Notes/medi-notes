@@ -43,7 +43,7 @@ interface Consulta {
 interface Cita {
   id: string;
   fecha: any;
-  motivo: string;
+  notas: string;
   estado: string;
 }
 
@@ -779,7 +779,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
           pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.setTextColor(40, 40, 40);
           pdf.text(`${i + 1}. ${formatFecha(c.fecha)}  —  ${estadoLabels[c.estado] ?? c.estado}`, margin, y); y += 5;
           pdf.setFont("helvetica", "normal"); pdf.setTextColor(80, 80, 80);
-          const ml = pdf.splitTextToSize(`Motivo: ${c.motivo || "—"}`, contentW - 4);
+          const ml = pdf.splitTextToSize(`Notas: ${c.notas || "—"}`, contentW - 4);
           checkPage(ml.length * 5 + 3); pdf.text(ml, margin + 4, y); y += ml.length * 5 + 3;
         });
       }
@@ -963,8 +963,8 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                         <span className="text-sm font-medium text-gray-700">{formatFecha(c.fecha)}</span>
                       </div>
                       <div className="flex-1">
-                        <span className="text-xs text-gray-400 block">Motivo</span>
-                        <span className="text-sm text-gray-800">{c.motivo || "—"}</span>
+                        <span className="text-xs text-gray-400 block">Notas de la cita</span>
+                        <span className="text-sm text-gray-800">{c.notas || "—"}</span>
                       </div>
                       <div className="min-w-[100px] flex justify-end"><EstadoBadge estado={c.estado} /></div>
                     </div>
@@ -1477,7 +1477,7 @@ export function PatientProfileModal({ patient, isOpen, onClose }: PatientProfile
                           )}
                           {event.tipo === "cita" && (
                             <div className="space-y-1">
-                              <p className="text-sm font-medium text-gray-800">{event.data.motivo || "—"}</p>
+                              <p className="text-sm font-medium text-gray-800">{event.data.notas || "—"}</p>
                             </div>
                           )}
                           {event.tipo === "documento" && (
