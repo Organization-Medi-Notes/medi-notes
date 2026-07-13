@@ -67,7 +67,7 @@ interface Consulta {
 interface Cita {
   id: string;
   fecha: any;
-  motivo: string;
+  notas: string;
   estado: string;
 }
 
@@ -1110,7 +1110,10 @@ export default function ExpedienteDetallePage() {
                     )}
 
                     {event.tipo === "cita" && (
-                      <p className="text-sm font-medium text-gray-800">{event.data.motivo || "—"}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-400">Notas del doctor</p>
+                        <p className="text-sm font-medium text-gray-800">{event.data.notas || "Sin notas registradas"}</p>
+                      </div>
                     )}
 
                     {event.tipo === "documento" && (
