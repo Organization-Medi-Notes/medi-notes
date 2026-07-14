@@ -46,6 +46,10 @@ export default function DashboardLayout({
   const [userRole, setUserRole] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
+  const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>(
+  {}
+);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -65,6 +69,18 @@ export default function DashboardLayout({
 
         const userData = userSnap.data();
         setUserRole(userData.rol ?? null);
+
+        const configRef = doc(db, "configuracion", user.uid);
+const configSnap = await getDoc(configRef);
+
+if (configSnap.exists()) {
+  const configData = configSnap.data();
+
+  if (configData.enabledModules) {
+    setEnabledModules(configData.enabledModules);
+  }
+}
+
       } catch (error) {
         console.error("Error obteniendo rol del usuario:", error);
         await signOut(auth);
@@ -125,7 +141,10 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar userRole={userRole} />
+      <Sidebar
+  userRole={userRole}
+  enabledModules={enabledModules}
+/>
       <main className="flex-1 ml-64 p-8 animate-fadeIn">
         <div className="max-w-7xl mx-auto">
           {accessDenied ? (

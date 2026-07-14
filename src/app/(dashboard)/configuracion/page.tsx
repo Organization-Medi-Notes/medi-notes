@@ -56,6 +56,17 @@ const [appointmentRules, setAppointmentRules] = useState({
   duracionCitaMinutos: 30,
 });
 
+const [enabledModules, setEnabledModules] = useState({
+  "/inicio": true,
+  "/pacientes": true,
+  "/calendario": true,
+  "/citas": true,
+  "/formularios": true,
+  "/expedientes": true,
+  "/reportes": true,
+  "/asistente": true,
+});
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -85,6 +96,11 @@ if (data) {
   if (dataAny.appointmentRules) {
     setAppointmentRules(dataAny.appointmentRules);
   }
+
+  if (dataAny.enabledModules) {
+  setEnabledModules(dataAny.enabledModules);
+}
+
 }
  else {
   setProfile({
@@ -188,13 +204,16 @@ const handleRoleChange = async (userId: string, newRole: string) => {
   ...profile,
   notifications,
   appointmentRules,
+  enabledModules,
 });
 
       toast({
         title: "Éxito",
         description: "Configuración guardada en la nube.",
       });
-    } catch (error) {
+    } 
+    
+    catch (error) {
       toast({
         title: "Error",
         description: "No se pudo guardar la configuración.",
@@ -318,6 +337,13 @@ const handleRoleChange = async (userId: string, newRole: string) => {
             >
               <Clock className="w-4 h-4" /> Horario y Precios
             </TabsTrigger>
+
+            <TabsTrigger
+  value="modules"
+  className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+>
+  <Settings className="w-4 h-4" /> Módulos
+</TabsTrigger>
 
             <TabsTrigger
               value="security"
@@ -547,6 +573,54 @@ const handleRoleChange = async (userId: string, newRole: string) => {
           }
         />
       </div>
+
+      <div className="pt-4">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "Guardando..." : "Guardar Cambios"}
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+</TabsContent>
+
+<TabsContent value="modules" className="mt-0">
+  <Card>
+    <CardHeader>
+      <CardTitle>Módulos visibles</CardTitle>
+      <CardDescription>
+        Seleccione cuáles módulos desea mostrar en el menú lateral.
+      </CardDescription>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      {[
+        { key: "/inicio", label: "Dashboard" },
+        { key: "/pacientes", label: "Pacientes" },
+        { key: "/calendario", label: "Calendario" },
+        { key: "/citas", label: "Citas" },
+        { key: "/formularios", label: "Formularios" },
+        { key: "/expedientes", label: "Expedientes" },
+        { key: "/reportes", label: "Reportes" },
+        { key: "/asistente", label: "Asistente IA" },
+      ].map((module) => (
+        <div
+          key={module.key}
+          className="flex items-center justify-between border-b pb-3"
+        >
+          <span>{module.label}</span>
+
+          <input
+            type="checkbox"
+            checked={enabledModules[module.key as keyof typeof enabledModules]}
+            onChange={(e) =>
+              setEnabledModules({
+                ...enabledModules,
+                [module.key]: e.target.checked,
+              })
+            }
+          />
+        </div>
+      ))}
 
       <div className="pt-4">
         <Button onClick={handleSave} disabled={saving}>
