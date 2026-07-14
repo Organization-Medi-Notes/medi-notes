@@ -1,9 +1,11 @@
 "use client";
 
+// VERSION CON FLECHAS PARA CAMBIAR MES
 import { useMemo, useState } from "react";
 import {
   CalendarCheck,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   Clock,
 } from "lucide-react";
@@ -103,6 +105,15 @@ function formatSelectedDate(date: Date) {
   );
 }
 
+function formatMonthYear(date: Date) {
+  return capitalizeFirst(
+    date.toLocaleDateString("es-CR", {
+      month: "long",
+      year: "numeric",
+    })
+  );
+}
+
 export function DashboardCalendarPreview({
   appointments,
   onOpenAppointment,
@@ -124,6 +135,7 @@ export function DashboardCalendarPreview({
       appointments
         .filter((appointment) => {
           const appointmentDate = getDateFromFirestore(appointment?.fecha);
+
           return appointmentDate
             ? isSameDay(appointmentDate, selectedDate)
             : false;
@@ -135,6 +147,22 @@ export function DashboardCalendarPreview({
         ),
     [appointments, selectedDate]
   );
+
+  function goToPreviousMonth() {
+    setMonth((currentMonth) => {
+      const previousMonth = new Date(currentMonth);
+      previousMonth.setMonth(previousMonth.getMonth() - 1);
+      return previousMonth;
+    });
+  }
+
+  function goToNextMonth() {
+    setMonth((currentMonth) => {
+      const nextMonth = new Date(currentMonth);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      return nextMonth;
+    });
+  }
 
   return (
     <section className="space-y-4">
@@ -163,14 +191,40 @@ export function DashboardCalendarPreview({
       <div className="card-notion overflow-hidden p-0">
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr]">
           <div className="border-b p-5 lg:border-b-0 lg:border-r">
+            <div className="mb-4 flex items-center justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={goToPreviousMonth}
+                aria-label="Mes anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <p className="text-sm font-bold text-gray-900">
+                {formatMonthYear(month)}
+              </p>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={goToNextMonth}
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={(date) => {
-                if (date) {
-                  setSelectedDate(date);
-                  setMonth(date);
-                }
+                if (!date) return;
+
+                setSelectedDate(date);
+                setMonth(date);
               }}
               month={month}
               onMonthChange={setMonth}
@@ -180,6 +234,10 @@ export function DashboardCalendarPreview({
               modifiersClassNames={{
                 hasAppointment:
                   "bg-purple-100 text-purple-700 font-semibold hover:bg-purple-200",
+              }}
+              classNames={{
+                caption: "hidden",
+                nav: "hidden",
               }}
               className="mx-auto rounded-md border-none"
             />
@@ -210,8 +268,7 @@ export function DashboardCalendarPreview({
                 <CalendarCheck className="mb-3 h-11 w-11 opacity-20" />
                 <p className="font-medium">Sin citas este día</p>
                 <p className="mt-1 max-w-xs text-sm">
-                  Seleccione en el calendario una fecha resaltada para ver sus
-                  consultas.
+                  Seleccione en el calendario una fecha resaltada para ver sus consultas.
                 </p>
               </div>
             ) : (
@@ -247,6 +304,7 @@ export function DashboardCalendarPreview({
                         <Badge className={getStatusClass(status)}>
                           {status}
                         </Badge>
+
                         <ChevronRight className="h-4 w-4 text-gray-300" />
                       </div>
                     </button>
