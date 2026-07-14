@@ -25,6 +25,8 @@ import { DashboardCalendarPreview } from "@/components/dashboard/DashboardCalend
 import { PastAppointmentsList } from "@/components/dashboard/PastAppointmentsList";
 import { UpcomingAppointmentsList } from "@/components/dashboard/UpcomingAppointmentsList";
 import { CancelledAppointmentsList } from "@/components/dashboard/CancelledAppointmentsList";
+import { DashboardFinancialAnalysis } from "@/components/dashboard/DashboardFinancialAnalysis";
+import { DashboardSectionHeader } from "@/components/dashboard/DashboardSectionHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -782,7 +784,7 @@ export default function DashboardPage() {
       colorClass: "bg-rose-50 text-rose-600"
     },
     {
-      title: "Ingresos",
+      title: "Ingresos estimados",
       value: `₡${periodRevenue.toLocaleString("es-CR")}`,
       change: metricScopeLabel,
       trend: "up" as const,
@@ -795,14 +797,20 @@ export default function DashboardPage() {
     <div className="space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-gray-900">Bienvenido, Dr. Solano</h1>
-          <p className="text-gray-500 mt-1">Aquí está lo que está pasando en su consultorio.</p>
+          <h1 className="text-3xl font-headline font-bold text-gray-900">Dashboard Principal</h1>
+          <p className="text-gray-500 mt-1">A continuación se presenta información de su consultorio</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="h-11" onClick={() => router.push("/configuracion")}>Configuración</Button>
           <Button className="h-11 bg-accent hover:bg-accent/90 text-white" onClick={() => router.push("/citas")}>Nueva Cita</Button>
         </div>
       </div>
+
+      <DashboardSectionHeader
+        number="01"
+        title="Resumen general"
+        description="Indicadores principales y filtros para consultar la actividad del consultorio."
+      />
 
       <div className="card-notion p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -860,6 +868,12 @@ export default function DashboardPage() {
           {metrics.map((m, idx) => <MetricCard key={idx} {...m} />)}
         </div>
       )}
+
+      <DashboardSectionHeader
+        number="02"
+        title="Gestión clínica y documental"
+        description="Resumen operativo, expedientes y documentos de apoyo para el período seleccionado."
+      />
 
       {!loading && (
         <div className="space-y-4">
@@ -1062,6 +1076,12 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
+      <DashboardSectionHeader
+        number="03"
+        title="Análisis y rendimiento"
+        description="Tendencias de citas, distribución por estado y análisis financiero estimado."
+      />
+
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 card-notion p-6">
@@ -1131,6 +1151,19 @@ export default function DashboardPage() {
       )}
 
       {!loading && (
+        <DashboardFinancialAnalysis
+          appointments={periodAppointments}
+          periodLabel={shortPeriodLabel}
+        />
+      )}
+
+      <DashboardSectionHeader
+        number="04"
+        title="Agenda y actividad"
+        description="Calendario interactivo y últimos movimientos registrados en el sistema."
+      />
+
+      {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <DashboardCalendarPreview
@@ -1179,6 +1212,12 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <DashboardSectionHeader
+        number="05"
+        title="Seguimiento de citas"
+        description="Historial de consultas, próximas citas confirmadas y cancelaciones."
+      />
 
       {!loading && (
         <PastAppointmentsList
