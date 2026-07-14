@@ -11,7 +11,6 @@ import {
   DollarSign,
   MoreVertical,
   ChevronRight,
-  Clock,
   UserPlus,
   Loader2,
   FileText,
@@ -23,6 +22,7 @@ import {
   Download
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { DashboardCalendarPreview } from "@/components/dashboard/DashboardCalendarPreview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -343,7 +343,6 @@ function getTrendData(period: Period, appointments: any[], referenceDate: Date) 
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [appointments, setAppointments] = useState<any[]>([]);
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
@@ -367,13 +366,11 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [todayApts, allApts, pts, records] = await Promise.all([
-          appointmentService.getToday(),
+        const [allApts, pts, records] = await Promise.all([
           appointmentService.getAll(),
           patientService.getAll(),
           medicalRecordService.getAll()
         ]);
-        setAppointments(todayApts);
         setAllAppointments(allApts);
         setPatients(pts);
         setMedicalRecords(records);
@@ -458,23 +455,6 @@ export default function DashboardPage() {
     });
 
   const canGenerateSupportDoc = Boolean(supportSubtype && selectedSupportPatientId && patientsWithRecords.length > 0);
-
-  const todayAppointments = allAppointments
-    .filter((apt) => {
-      const aptDate = getDateFromFirestore(apt.fecha);
-      if (!aptDate) return false;
-
-      const today = new Date();
-
-      return (
-        aptDate.getDate() === today.getDate() &&
-        aptDate.getMonth() === today.getMonth() &&
-        aptDate.getFullYear() === today.getFullYear()
-      );
-    })
-    .sort((a, b) =>
-      String(getAppointmentTime(a)).localeCompare(String(getAppointmentTime(b)))
-    );
 
   const periodRevenue = periodAppointments.reduce((acc, apt) => {
     const status = getAppointmentStatus(apt);
@@ -1156,67 +1136,12 @@ export default function DashboardPage() {
 
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                Citas para hoy
-              </h2>
-              <Button variant="ghost" className="text-sm text-primary" onClick={() => router.push("/citas")}>Ver todas</Button>
-            </div>
-
-            <div className="card-notion overflow-hidden p-0 min-h-[300px]">
-              {todayAppointments.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[300px] text-gray-400">
-                  <CalendarCheck className="w-10 h-10 mb-2 opacity-20" />
-                  <p>No hay citas registradas para hoy.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {todayAppointments.map((apt, idx) => (
-                    <div
-                      key={apt.id ?? idx}
-                      onClick={() => handleOpenAppointmentDetail(apt)}
-                      className="p-4 hover:bg-gray-50 transition-colors grid grid-cols-[82px_1fr_auto] gap-4 items-center group cursor-pointer"
-                    >
-                      <div className="rounded-xl bg-blue-50 text-blue-700 px-3 py-2 text-center border border-blue-100">
-                        <p className="text-xs font-semibold uppercase tracking-wide">Hora</p>
-                        <p className="text-sm font-bold">{getAppointmentTime(apt)}</p>
-                      </div>
-
-                      <div>
-                        <h4 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">
-                          {getAppointmentPatientName(apt)}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {getAppointmentType(apt)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={cn(
-                            "capitalize px-3 py-1 text-[10px]",
-                            getAppointmentStatus(apt) === "completada" || getAppointmentStatus(apt) === "completado"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : getAppointmentStatus(apt) === "confirmada"
-                              ? "bg-blue-50 text-blue-700 border-blue-100"
-                              : getAppointmentStatus(apt) === "cancelada"
-                              ? "bg-rose-50 text-rose-700 border-rose-100"
-                              : "bg-amber-50 text-amber-700 border-amber-100"
-                          )}
-                        >
-                          {getAppointmentStatus(apt)}
-                        </Badge>
-                        <Button variant="ghost" size="icon" className="text-gray-400" onClick={(event) => event.stopPropagation()}>
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="lg:col-span-2">
+            <DashboardCalendarPreview
+              appointments={allAppointments}
+              onOpenAppointment={handleOpenAppointmentDetail}
+              onOpenCalendar={() => router.push("/calendario")}
+            />
           </div>
 
           <div className="space-y-4">
