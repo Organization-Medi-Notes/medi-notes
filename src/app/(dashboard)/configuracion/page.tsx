@@ -50,6 +50,12 @@ export default function SettingsPage() {
   alertasSistema: true,
 });
 
+const [appointmentRules, setAppointmentRules] = useState({
+  horasMinimasCancelacion: 24,
+  diasMaximosAnticipacion: 30,
+  duracionCitaMinutos: 30,
+});
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -72,10 +78,15 @@ if (data) {
 
   const dataAny = data as any;
 
-if (dataAny.notifications) {
-  setNotifications(dataAny.notifications);
+  if (dataAny.notifications) {
+    setNotifications(dataAny.notifications);
+  }
+
+  if (dataAny.appointmentRules) {
+    setAppointmentRules(dataAny.appointmentRules);
+  }
 }
-} else {
+ else {
   setProfile({
     nombre: "Natalia",
     apellidos: "Solano",
@@ -176,6 +187,7 @@ const handleRoleChange = async (userId: string, newRole: string) => {
       await settingsService.updateProfile({
   ...profile,
   notifications,
+  appointmentRules,
 });
 
       toast({
@@ -469,17 +481,81 @@ const handleRoleChange = async (userId: string, newRole: string) => {
 </TabsContent>
 
             <TabsContent
-              value="clinic"
-              className="mt-0"
-            >
-              <div className="max-w-xs">
-                <Clock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                <h3 className="font-bold text-gray-400">Horario de Consulta</h3>
-                <p className="text-sm text-gray-400 mt-2">
-                  Defina sus horas de atención y precios base por tipo de consulta.
-                </p>
-              </div>
-            </TabsContent>
+  value="clinic"
+  className="mt-0"
+>
+  <Card>
+    <CardHeader>
+      <CardTitle>Reglas de Citas</CardTitle>
+      <CardDescription>
+        Defina los parámetros que se aplicarán al agendar y cancelar citas.
+      </CardDescription>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="horasMinimasCancelacion">
+          Horas mínimas para cancelar
+        </Label>
+        <Input
+          id="horasMinimasCancelacion"
+          type="number"
+          min="0"
+          value={appointmentRules.horasMinimasCancelacion}
+          onChange={(e) =>
+            setAppointmentRules({
+              ...appointmentRules,
+              horasMinimasCancelacion: Number(e.target.value),
+            })
+          }
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="diasMaximosAnticipacion">
+          Días máximos de anticipación
+        </Label>
+        <Input
+          id="diasMaximosAnticipacion"
+          type="number"
+          min="1"
+          value={appointmentRules.diasMaximosAnticipacion}
+          onChange={(e) =>
+            setAppointmentRules({
+              ...appointmentRules,
+              diasMaximosAnticipacion: Number(e.target.value),
+            })
+          }
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="duracionCitaMinutos">
+          Duración predeterminada de la cita
+        </Label>
+        <Input
+          id="duracionCitaMinutos"
+          type="number"
+          min="10"
+          step="5"
+          value={appointmentRules.duracionCitaMinutos}
+          onChange={(e) =>
+            setAppointmentRules({
+              ...appointmentRules,
+              duracionCitaMinutos: Number(e.target.value),
+            })
+          }
+        />
+      </div>
+
+      <div className="pt-4">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "Guardando..." : "Guardar Cambios"}
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+</TabsContent>
 
             <TabsContent value="security" className="space-y-6 mt-0">
   <div className="space-y-4">
