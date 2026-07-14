@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DashboardCalendarPreview } from "@/components/dashboard/DashboardCalendarPreview";
+import { PastAppointmentsList } from "@/components/dashboard/PastAppointmentsList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -1182,6 +1183,13 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {!loading && (
+        <PastAppointmentsList
+          appointments={allAppointments}
+          onOpenAppointment={handleOpenAppointmentDetail}
+        />
       )}
 
       {!loading && (
