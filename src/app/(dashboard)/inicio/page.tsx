@@ -18,12 +18,13 @@ import {
   CalendarDays,
   ArrowLeft,
   ArrowRight,
-  TrendingUp,
   Download
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DashboardCalendarPreview } from "@/components/dashboard/DashboardCalendarPreview";
 import { PastAppointmentsList } from "@/components/dashboard/PastAppointmentsList";
+import { UpcomingAppointmentsList } from "@/components/dashboard/UpcomingAppointmentsList";
+import { CancelledAppointmentsList } from "@/components/dashboard/CancelledAppointmentsList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -790,12 +791,6 @@ export default function DashboardPage() {
     }
   ];
 
-  const quickReports = [
-    { title: "Reporte de citas", description: "Cantidad de citas registradas en el período seleccionado.", value: `${periodAppointments.length} citas`, icon: FileText },
-    { title: "Reporte financiero", description: "Ingresos estimados del período seleccionado.", value: `₡${periodRevenue.toLocaleString("es-CR")}`, icon: TrendingUp },
-    { title: "Reporte de pacientes", description: "Pacientes activos registrados en el consultorio.", value: `${patients.length} pacientes`, icon: Users }
-  ];
-
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -1193,44 +1188,18 @@ export default function DashboardPage() {
       )}
 
       {!loading && (
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Reportes rápidos</h2>
-              <p className="text-sm text-gray-500 mt-1">Accesos directos para revisar información clave del consultorio.</p>
-            </div>
-            <Button variant="outline" className="h-10 text-sm" onClick={() => router.push("/reportes")}>
-              Ver todos los reportes
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+          <UpcomingAppointmentsList
+            appointments={allAppointments}
+            onOpenAppointment={handleOpenAppointmentDetail}
+          />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {quickReports.map((report) => {
-              const Icon = report.icon;
-              return (
-                <button
-                  key={report.title}
-                  type="button"
-                  onClick={() => router.push("/reportes")}
-                  className="card-notion p-5 text-left hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="p-3 rounded-2xl bg-gray-50 text-gray-700 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary transition-colors" />
-                  </div>
-                  <p className="text-lg font-bold text-gray-900 mt-5">{report.value}</p>
-                  <h3 className="text-sm font-semibold text-gray-900 mt-2">{report.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{report.description}</p>
-                </button>
-              );
-            })}
-          </div>
+          <CancelledAppointmentsList
+            appointments={allAppointments}
+            onOpenAppointment={handleOpenAppointmentDetail}
+          />
         </div>
       )}
-
 
 
       <Dialog
