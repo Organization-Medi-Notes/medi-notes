@@ -11,7 +11,6 @@ import {
   DollarSign,
   MoreVertical,
   ChevronRight,
-  Clock,
   UserPlus,
   Loader2,
   FileText,
@@ -19,10 +18,15 @@ import {
   CalendarDays,
   ArrowLeft,
   ArrowRight,
-  TrendingUp,
   Download
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { DashboardCalendarPreview } from "@/components/dashboard/DashboardCalendarPreview";
+import { PastAppointmentsList } from "@/components/dashboard/PastAppointmentsList";
+import { UpcomingAppointmentsList } from "@/components/dashboard/UpcomingAppointmentsList";
+import { CancelledAppointmentsList } from "@/components/dashboard/CancelledAppointmentsList";
+import { DashboardFinancialAnalysis } from "@/components/dashboard/DashboardFinancialAnalysis";
+import { DashboardSectionHeader } from "@/components/dashboard/DashboardSectionHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -343,7 +347,6 @@ function getTrendData(period: Period, appointments: any[], referenceDate: Date) 
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [appointments, setAppointments] = useState<any[]>([]);
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
@@ -367,13 +370,11 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [todayApts, allApts, pts, records] = await Promise.all([
-          appointmentService.getToday(),
+        const [allApts, pts, records] = await Promise.all([
           appointmentService.getAll(),
           patientService.getAll(),
           medicalRecordService.getAll()
         ]);
-        setAppointments(todayApts);
         setAllAppointments(allApts);
         setPatients(pts);
         setMedicalRecords(records);
@@ -458,23 +459,6 @@ export default function DashboardPage() {
     });
 
   const canGenerateSupportDoc = Boolean(supportSubtype && selectedSupportPatientId && patientsWithRecords.length > 0);
-
-  const todayAppointments = allAppointments
-    .filter((apt) => {
-      const aptDate = getDateFromFirestore(apt.fecha);
-      if (!aptDate) return false;
-
-      const today = new Date();
-
-      return (
-        aptDate.getDate() === today.getDate() &&
-        aptDate.getMonth() === today.getMonth() &&
-        aptDate.getFullYear() === today.getFullYear()
-      );
-    })
-    .sort((a, b) =>
-      String(getAppointmentTime(a)).localeCompare(String(getAppointmentTime(b)))
-    );
 
   const periodRevenue = periodAppointments.reduce((acc, apt) => {
     const status = getAppointmentStatus(apt);
@@ -800,7 +784,7 @@ export default function DashboardPage() {
       colorClass: "bg-rose-50 text-rose-600"
     },
     {
-      title: "Ingresos",
+      title: "Ingresos estimados",
       value: `₡${periodRevenue.toLocaleString("es-CR")}`,
       change: metricScopeLabel,
       trend: "up" as const,
@@ -809,24 +793,24 @@ export default function DashboardPage() {
     }
   ];
 
-  const quickReports = [
-    { title: "Reporte de citas", description: "Cantidad de citas registradas en el período seleccionado.", value: `${periodAppointments.length} citas`, icon: FileText },
-    { title: "Reporte financiero", description: "Ingresos estimados del período seleccionado.", value: `₡${periodRevenue.toLocaleString("es-CR")}`, icon: TrendingUp },
-    { title: "Reporte de pacientes", description: "Pacientes activos registrados en el consultorio.", value: `${patients.length} pacientes`, icon: Users }
-  ];
-
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-gray-900">Bienvenido, Dr. Solano</h1>
-          <p className="text-gray-500 mt-1">Aquí está lo que está pasando en su consultorio.</p>
+          <h1 className="text-3xl font-headline font-bold text-gray-900">Dashboard Principal</h1>
+          <p className="text-gray-500 mt-1">A continuación se presenta información de su consultorio</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="h-11" onClick={() => router.push("/configuracion")}>Configuración</Button>
           <Button className="h-11 bg-accent hover:bg-accent/90 text-white" onClick={() => router.push("/citas")}>Nueva Cita</Button>
         </div>
       </div>
+
+      <DashboardSectionHeader
+        number="01"
+        title="Resumen general"
+        description="Indicadores principales y filtros para consultar la actividad del consultorio."
+      />
 
       <div className="card-notion p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -884,6 +868,12 @@ export default function DashboardPage() {
           {metrics.map((m, idx) => <MetricCard key={idx} {...m} />)}
         </div>
       )}
+
+      <DashboardSectionHeader
+        number="02"
+        title="Gestión clínica y documental"
+        description="Resumen operativo, expedientes y documentos de apoyo para el período seleccionado."
+      />
 
       {!loading && (
         <div className="space-y-4">
@@ -1086,6 +1076,12 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
+      <DashboardSectionHeader
+        number="03"
+        title="Análisis y rendimiento"
+        description="Tendencias de citas, distribución por estado y análisis financiero estimado."
+      />
+
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 card-notion p-6">
@@ -1155,68 +1151,26 @@ export default function DashboardPage() {
       )}
 
       {!loading && (
+        <DashboardFinancialAnalysis
+          appointments={periodAppointments}
+          periodLabel={shortPeriodLabel}
+        />
+      )}
+
+      <DashboardSectionHeader
+        number="04"
+        title="Agenda y actividad"
+        description="Calendario interactivo y últimos movimientos registrados en el sistema."
+      />
+
+      {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                Citas para hoy
-              </h2>
-              <Button variant="ghost" className="text-sm text-primary" onClick={() => router.push("/citas")}>Ver todas</Button>
-            </div>
-
-            <div className="card-notion overflow-hidden p-0 min-h-[300px]">
-              {todayAppointments.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[300px] text-gray-400">
-                  <CalendarCheck className="w-10 h-10 mb-2 opacity-20" />
-                  <p>No hay citas registradas para hoy.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {todayAppointments.map((apt, idx) => (
-                    <div
-                      key={apt.id ?? idx}
-                      onClick={() => handleOpenAppointmentDetail(apt)}
-                      className="p-4 hover:bg-gray-50 transition-colors grid grid-cols-[82px_1fr_auto] gap-4 items-center group cursor-pointer"
-                    >
-                      <div className="rounded-xl bg-blue-50 text-blue-700 px-3 py-2 text-center border border-blue-100">
-                        <p className="text-xs font-semibold uppercase tracking-wide">Hora</p>
-                        <p className="text-sm font-bold">{getAppointmentTime(apt)}</p>
-                      </div>
-
-                      <div>
-                        <h4 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">
-                          {getAppointmentPatientName(apt)}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {getAppointmentType(apt)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={cn(
-                            "capitalize px-3 py-1 text-[10px]",
-                            getAppointmentStatus(apt) === "completada" || getAppointmentStatus(apt) === "completado"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : getAppointmentStatus(apt) === "confirmada"
-                              ? "bg-blue-50 text-blue-700 border-blue-100"
-                              : getAppointmentStatus(apt) === "cancelada"
-                              ? "bg-rose-50 text-rose-700 border-rose-100"
-                              : "bg-amber-50 text-amber-700 border-amber-100"
-                          )}
-                        >
-                          {getAppointmentStatus(apt)}
-                        </Badge>
-                        <Button variant="ghost" size="icon" className="text-gray-400" onClick={(event) => event.stopPropagation()}>
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="lg:col-span-2">
+            <DashboardCalendarPreview
+              appointments={allAppointments}
+              onOpenAppointment={handleOpenAppointmentDetail}
+              onOpenCalendar={() => router.push("/calendario")}
+            />
           </div>
 
           <div className="space-y-4">
@@ -1259,45 +1213,32 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!loading && (
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Reportes rápidos</h2>
-              <p className="text-sm text-gray-500 mt-1">Accesos directos para revisar información clave del consultorio.</p>
-            </div>
-            <Button variant="outline" className="h-10 text-sm" onClick={() => router.push("/reportes")}>
-              Ver todos los reportes
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
+      <DashboardSectionHeader
+        number="05"
+        title="Seguimiento de citas"
+        description="Historial de consultas, próximas citas confirmadas y cancelaciones."
+      />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {quickReports.map((report) => {
-              const Icon = report.icon;
-              return (
-                <button
-                  key={report.title}
-                  type="button"
-                  onClick={() => router.push("/reportes")}
-                  className="card-notion p-5 text-left hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="p-3 rounded-2xl bg-gray-50 text-gray-700 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary transition-colors" />
-                  </div>
-                  <p className="text-lg font-bold text-gray-900 mt-5">{report.value}</p>
-                  <h3 className="text-sm font-semibold text-gray-900 mt-2">{report.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{report.description}</p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {!loading && (
+        <PastAppointmentsList
+          appointments={allAppointments}
+          onOpenAppointment={handleOpenAppointmentDetail}
+        />
       )}
 
+      {!loading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+          <UpcomingAppointmentsList
+            appointments={allAppointments}
+            onOpenAppointment={handleOpenAppointmentDetail}
+          />
+
+          <CancelledAppointmentsList
+            appointments={allAppointments}
+            onOpenAppointment={handleOpenAppointmentDetail}
+          />
+        </div>
+      )}
 
 
       <Dialog

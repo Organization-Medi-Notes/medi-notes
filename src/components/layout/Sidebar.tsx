@@ -62,12 +62,7 @@ const menuItems = [
     href: "/reportes",
     roles: ["doctor", "administrador"],
   },
-  {
-    icon: Sparkles,
-    label: "Asistente IA",
-    href: "/asistente",
-    roles: ["doctor", "administrador"],
-  },
+ 
   {
     icon: Settings,
     label: "Configuración",
@@ -162,7 +157,7 @@ export function Sidebar({
 
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">
-              Dra. Natalia Solano
+              Medi Notes
             </p>
 
             <p className="text-[10px] text-sidebar-foreground truncate uppercase tracking-widest">
