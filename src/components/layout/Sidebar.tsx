@@ -45,10 +45,10 @@ const menuItems = [
     roles: ["doctor", "administrador", "asistente"],
   },
   {
-    icon: FileText, // Usaremos el ícono de FileText por ahora
+    icon: FileText,
     label: "Formularios",
     href: "/formularios",
-    roles: ["doctor", "administrador", "asistente"], // Todos los roles
+    roles: ["doctor", "administrador", "asistente"],
   },
   {
     icon: FileText,
@@ -78,9 +78,13 @@ const menuItems = [
 
 type SidebarProps = {
   userRole: string | null;
+  enabledModules?: Record<string, boolean>;
 };
 
-export function Sidebar({ userRole }: SidebarProps) {
+export function Sidebar({
+  userRole,
+  enabledModules = {},
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -93,9 +97,14 @@ export function Sidebar({ userRole }: SidebarProps) {
     }
   };
 
-  const visibleMenuItems = menuItems.filter((item) =>
-    item.roles.includes(userRole ?? "")
-  );
+  const visibleMenuItems = menuItems.filter((item) => {
+    const allowedByRole = item.roles.includes(userRole ?? "");
+    const alwaysVisible = item.href === "/configuracion";
+    const enabledByPreference =
+      alwaysVisible || enabledModules[item.href] !== false;
+
+    return allowedByRole && enabledByPreference;
+  });
 
   return (
     <div className="fixed inset-y-0 left-0 w-64 bg-sidebar-background flex flex-col h-full z-50">
@@ -103,6 +112,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
           <Stethoscope className="text-white w-6 h-6" />
         </div>
+
         <span className="text-xl font-headline font-bold text-white tracking-tight">
           Medi Notes
         </span>
@@ -133,6 +143,7 @@ export function Sidebar({ userRole }: SidebarProps) {
                     : "text-sidebar-foreground group-hover:text-white"
                 )}
               />
+
               <span className="font-medium text-sm">{item.label}</span>
             </Link>
           );
@@ -143,6 +154,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-hover transition-colors">
           <Avatar className="h-9 w-9 border border-sidebar-hover">
             <AvatarImage src="https://picsum.photos/seed/doc/100/100" />
+
             <AvatarFallback className="bg-primary text-white text-xs">
               DR
             </AvatarFallback>
@@ -152,6 +164,7 @@ export function Sidebar({ userRole }: SidebarProps) {
             <p className="text-sm font-semibold text-white truncate">
               Dra. Natalia Solano
             </p>
+
             <p className="text-[10px] text-sidebar-foreground truncate uppercase tracking-widest">
               {userRole ?? "Sin rol"}
             </p>
