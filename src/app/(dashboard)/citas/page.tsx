@@ -14,6 +14,22 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { useState, useEffect } from "react";
 
 
@@ -22,7 +38,23 @@ import { useState, useEffect } from "react";
 
 
 
+
+
+
+
+
+
+
+
 import {
+
+
+
+
+
+
+
+
 
 
 
@@ -38,7 +70,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   Search,
+
+
+
+
+
+
+
+
 
 
 
@@ -54,7 +102,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   Plus,
+
+
+
+
+
+
+
+
 
 
 
@@ -70,7 +134,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   Loader2,
+
+
+
+
+
+
+
+
 
 
 
@@ -86,7 +166,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
 } from "lucide-react";
+
+
+
+
+
+
+
+
 
 
 
@@ -102,7 +198,23 @@ import { Button } from "@/components/ui/button";
 
 
 
+
+
+
+
+
+
+
+
 import { Input } from "@/components/ui/input";
+
+
+
+
+
+
+
+
 
 
 
@@ -118,7 +230,23 @@ import { Badge } from "@/components/ui/badge";
 
 
 
+
+
+
+
+
+
+
+
 import { cn } from "@/lib/utils";
+
+
+
+
+
+
+
+
 
 
 
@@ -134,7 +262,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   Table,
+
+
+
+
+
+
+
+
 
 
 
@@ -150,7 +294,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   TableCell,
+
+
+
+
+
+
+
+
 
 
 
@@ -166,7 +326,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   TableHeader,
+
+
+
+
+
+
+
+
 
 
 
@@ -182,7 +358,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
 } from "@/components/ui/table";
+
+
+
+
+
+
+
+
 
 
 
@@ -198,6 +390,14 @@ import { appointmentService, patientService } from "@/lib/firebase/db-service";
 
 
 
+
+
+
+
+
+
+
+
 import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioService";
 
 
@@ -206,7 +406,35 @@ import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioSe
 
 
 
+
+
+
+
+
+
+
+
 import { formularioService } from "@/lib/firebase/formularioService";
+import { FormularioClinico } from "@/lib/types/formulario.types";
+import { CitaFormulariosModal } from "../calendario/components/CitaFormulariosModal";
+import { CitaFormFiller } from "../calendario/components/CitaFormFiller";
+import { VerFormularioCitaModal } from "../calendario/components/VerFormularioCitaModal";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -230,7 +458,23 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   pacienteId: string;
+
+
+
+
+
+
+
+
 
 
 
@@ -246,7 +490,23 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   paciente_correo: string;
+
+
+
+
+
+
+
+
 
 
 
@@ -262,7 +522,23 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   fecha: string;
+
+
+
+
+
+
+
+
 
 
 
@@ -278,7 +554,23 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   hora_fin: string;
+
+
+
+
+
+
+
+
 
 
 
@@ -294,7 +586,23 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   monto: number;
+
+
+
+
+
+
+
+
 
 
 
@@ -310,7 +618,31 @@ type AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -334,7 +666,23 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   pacienteId: "",
+
+
+
+
+
+
+
+
 
 
 
@@ -350,7 +698,23 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   paciente_correo: "",
+
+
+
+
+
+
+
+
 
 
 
@@ -366,7 +730,23 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   fecha: "",
+
+
+
+
+
+
+
+
 
 
 
@@ -382,7 +762,23 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   hora_fin: "",
+
+
+
+
+
+
+
+
 
 
 
@@ -398,6 +794,14 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   monto: 0,
 
 
@@ -406,7 +810,23 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
   notas: "",
+
+
+
+
+
+
+
+
 
 
 
@@ -430,7 +850,31 @@ const emptyAppointment: AppointmentForm = {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function formatCurrency(value: number | string) {
+
+
+
+
+
+
+
+
 
 
 
@@ -446,7 +890,23 @@ function formatCurrency(value: number | string) {
 
 
 
+
+
+
+
+
+
+
+
     maximumFractionDigits: 0,
+
+
+
+
+
+
+
+
 
 
 
@@ -462,7 +922,31 @@ function formatCurrency(value: number | string) {
 
 
 
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -486,7 +970,31 @@ function generarHorarios() {
 
 
 
+
+
+
+
+
+
+
+
   const horarios: string[] = [];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -510,7 +1018,23 @@ function generarHorarios() {
 
 
 
+
+
+
+
+
+
+
+
     ["00", "15", "30", "45"].forEach((minuto) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -526,7 +1050,23 @@ function generarHorarios() {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -550,7 +1090,31 @@ function generarHorarios() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return horarios;
+
+
+
+
+
+
+
+
 
 
 
@@ -574,7 +1138,31 @@ function generarHorarios() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
+
+
+
+
+
+
+
+
 
 
 
@@ -598,7 +1186,31 @@ function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const correoDestino = window.prompt(
+
+
+
+
+
+
+
+
 
 
 
@@ -614,6 +1226,14 @@ function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
 
 
 
+
+
+
+
+
+
+
+
     correoGuardado
 
 
@@ -622,7 +1242,31 @@ function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -654,6 +1298,22 @@ function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const asunto = "Confirmación de cita médica";
 
 
@@ -662,7 +1322,31 @@ function abrirCorreoNotificacionCita(appointment: AppointmentForm) {
 
 
 
+
+
+
+
+
+
+
+
   const cuerpo = `Hola ${appointment.paciente_nombre},
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -694,7 +1378,39 @@ Le confirmamos su cita médica para el día ${appointment.fecha} a las ${appoint
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Tipo de consulta: ${appointment.tipo_consulta}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -726,7 +1442,31 @@ Saludos.`;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+
+
+
+
+
+
+
+
 
 
 
@@ -742,7 +1482,31 @@ const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURICompo
 
 
 
+
+
+
+
+
+
+
+
 )}&su=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -774,7 +1538,39 @@ window.open(gmailUrl, "_blank");
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -798,7 +1594,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [validationMessage, setValidationMessage] = useState("");
+
+
+
+
+
+
+
+
 
 
 
@@ -814,6 +1626,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [patients, setPatients] = useState<any[]>([]);
 
 
@@ -822,7 +1642,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [loading, setLoading] = useState(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -846,6 +1682,22 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const [searchTerm, setSearchTerm] = useState("");
 
 
@@ -854,7 +1706,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [filterOpen, setFilterOpen] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -878,7 +1746,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const [openNewAppointment, setOpenNewAppointment] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -894,6 +1786,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
 
 
@@ -902,7 +1802,43 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   const [actionsOpenId, setActionsOpenId] = useState<string | null>(null);
+
+  const [openCitaFormularios, setOpenCitaFormularios] = useState(false);
+  const [openFillForm, setOpenFillForm] = useState(false);
+  const [openViewForm, setOpenViewForm] = useState(false);
+  const [selectedAppointmentForForms, setSelectedAppointmentForForms] =
+    useState<any | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
+  const [availableFormularios, setAvailableFormularios] =
+    useState<FormularioClinico[]>([]);
+  const [assignedForms, setAssignedForms] = useState<any[]>([]);
+  const [loadingFormularios, setLoadingFormularios] = useState(false);
+  const [savingFormulario, setSavingFormulario] = useState(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -926,7 +1862,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     useState<AppointmentForm>(emptyAppointment);
+
+
+
+
+
+
+
+
 
 
 
@@ -942,7 +1894,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     useState<AppointmentForm>(emptyAppointment);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -966,6 +1942,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     loadData();
 
 
@@ -974,7 +1958,25 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     loadPatients();
+
+    loadFormularios();
+
+
+
+
+
+
+
+
 
 
 
@@ -998,7 +2000,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async function loadData() {
+
+
+
+
+
+
+
+
 
 
 
@@ -1014,7 +2040,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setLoading(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -1030,7 +2072,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setAppointments(data);
+
+
+
+
+
+
+
+
 
 
 
@@ -1046,7 +2104,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       console.error("Error cargando citas:", error);
+
+
+
+
+
+
+
+
 
 
 
@@ -1062,7 +2136,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setLoading(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -1078,7 +2168,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1102,7 +2216,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -1118,7 +2248,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setPatients(data.filter((p: any) => p.activo !== false));
+
+
+
+
+
+
+
+
 
 
 
@@ -1134,7 +2280,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       console.error("Error cargando pacientes:", error);
+
+
+
+
+
+
+
+
 
 
 
@@ -1150,7 +2312,159 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+  async function loadFormularios() {
+    try {
+      setLoadingFormularios(true);
+      const data = await formularioService.getCurrentActive();
+      setAvailableFormularios(data);
+    } catch (error) {
+      console.error("Error cargando formularios:", error);
+      setAvailableFormularios([]);
+    } finally {
+      setLoadingFormularios(false);
+    }
+  }
+
+  async function loadAssignedForms(citaId: string) {
+    try {
+      setLoadingFormularios(true);
+      const data = await respuestaFormularioService.getAssignedForms(citaId);
+      setAssignedForms(data);
+    } catch (error) {
+      console.error("Error cargando formularios asignados:", error);
+      setAssignedForms([]);
+    } finally {
+      setLoadingFormularios(false);
+    }
+  }
+
+  async function handleOpenAppointmentForms(apt: any) {
+    if (!apt?.id) return;
+
+    setSelectedAppointmentForForms(apt);
+    setOpenCitaFormularios(true);
+    await loadAssignedForms(apt.id);
+  }
+
+  async function handleAssignForm(formulario: FormularioClinico) {
+    if (!selectedAppointmentForForms?.id) return;
+
+    try {
+      setSavingFormulario(true);
+
+      await respuestaFormularioService.assignFormToCita({
+        citaId: selectedAppointmentForForms.id,
+        formularioId: formulario.id ?? "",
+        formularioNombre: formulario.nombre,
+        formularioEspecialidad: formulario.especialidad,
+        formularioVersion: formulario.version,
+        ...(selectedAppointmentForForms.pacienteId
+          ? { pacienteId: selectedAppointmentForForms.pacienteId }
+          : selectedAppointmentForForms.paciente_id
+          ? { pacienteId: selectedAppointmentForForms.paciente_id }
+          : {}),
+      });
+
+      await loadAssignedForms(selectedAppointmentForForms.id);
+    } catch (error) {
+      console.error("Error asignando formulario a cita:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
+  async function handleRemoveAssignedForm(assignmentId: string) {
+    try {
+      setSavingFormulario(true);
+      await respuestaFormularioService.deleteAssignedForm(assignmentId);
+
+      if (selectedAppointmentForForms?.id) {
+        await loadAssignedForms(selectedAppointmentForForms.id);
+      }
+    } catch (error) {
+      console.error("Error eliminando formulario asignado:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
+  function getAssignmentFormulario(assignment: any) {
+    if (!assignment?.formularioId) return null;
+
+    return (
+      availableFormularios.find(
+        (form) => form.id === assignment.formularioId
+      ) ?? null
+    );
+  }
+
+  function handleFillForm(assignment: any) {
+    setSelectedAssignment(assignment);
+    setOpenFillForm(true);
+  }
+
+  function handleViewForm(assignment: any) {
+    setSelectedAssignment(assignment);
+    setOpenViewForm(true);
+  }
+
+  async function handleSaveFormResponse(
+    values: Record<string, any>,
+    status: "draft" | "completed"
+  ) {
+    if (!selectedAssignment?.id) return;
+
+    try {
+      setSavingFormulario(true);
+
+      await respuestaFormularioService.updateAssignedForm(
+        selectedAssignment.id,
+        {
+          respuestas: values,
+          estado: status,
+        }
+      );
+
+      if (selectedAppointmentForForms?.id) {
+        await loadAssignedForms(selectedAppointmentForForms.id);
+      }
+
+      setOpenFillForm(false);
+      setOpenViewForm(status === "completed");
+    } catch (error) {
+      console.error("Error guardando respuestas de formulario:", error);
+    } finally {
+      setSavingFormulario(false);
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1174,7 +2488,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     const [year, month, day] = fecha.split("-").map(Number);
+
+
+
+
+
+
+
+
 
 
 
@@ -1190,7 +2520,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1214,7 +2568,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     if (fecha?.seconds) return new Date(fecha.seconds * 1000);
+
+
+
+
+
+
+
+
 
 
 
@@ -1230,6 +2600,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     return new Date(fecha);
 
 
@@ -1238,7 +2616,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1262,7 +2664,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     const fechaObj = obtenerFechaCita(fecha);
+
+
+
+
+
+
+
+
 
 
 
@@ -1278,7 +2696,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     const month = String(fechaObj.getMonth() + 1).padStart(2, "0");
+
+
+
+
+
+
+
+
 
 
 
@@ -1294,6 +2728,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     return `${year}-${month}-${day}`;
 
 
@@ -1302,7 +2744,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1326,6 +2792,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     return obtenerFechaCita(fecha).toLocaleDateString("es-CR");
 
 
@@ -1334,7 +2808,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1358,6 +2856,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     return String(estado || "").toLowerCase();
 
 
@@ -1366,7 +2872,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1390,7 +2920,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     fecha: string,
+
+
+
+
+
+
+
+
 
 
 
@@ -1406,7 +2952,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     citaIdActual?: string
+
+
+
+
+
+
+
+
 
 
 
@@ -1422,6 +2984,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     return appointments.some((apt) => {
 
 
@@ -1430,7 +3000,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       const mismaCita = citaIdActual && apt.id === citaIdActual;
+
+
+
+
+
+
+
+
 
 
 
@@ -1454,7 +3040,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const estado = normalizarEstado(apt.estado);
+
+
+
+
+
+
+
+
 
 
 
@@ -1478,7 +3088,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const fechaApt = formatInputDate(apt.fecha);
+
+
+
+
+
+
+
+
 
 
 
@@ -1502,7 +3136,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       return fechaApt === fecha && horaApt === horaInicio;
+
+
+
+
+
+
+
+
 
 
 
@@ -1518,7 +3176,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1542,7 +3224,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     const estadoNormalizado = normalizarEstado(estado);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1566,7 +3272,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       "capitalize px-2.5 py-0.5 text-[10px]",
+
+
+
+
+
+
+
+
 
 
 
@@ -1582,7 +3304,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         "bg-emerald-50 text-emerald-700 border-emerald-100",
+
+
+
+
+
+
+
+
 
 
 
@@ -1598,7 +3336,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         "bg-blue-50 text-blue-700 border-blue-100",
+
+
+
+
+
+
+
+
 
 
 
@@ -1614,7 +3368,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         "bg-amber-50 text-amber-700 border-amber-100",
+
+
+
+
+
+
+
+
 
 
 
@@ -1630,7 +3400,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         "bg-red-50 text-red-700 border-red-100"
+
+
+
+
+
+
+
+
 
 
 
@@ -1646,7 +3432,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1666,7 +3476,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
     if (!newAppointment.pacienteId) {
+
+
+
+
 
 
 
@@ -1674,11 +3492,27 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       return;
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1690,7 +3524,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       !newAppointment.paciente_nombre ||
+
+
+
+
 
 
 
@@ -1698,7 +3540,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       !newAppointment.hora_inicio
+
+
+
+
 
 
 
@@ -1706,7 +3556,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       setValidationMessage("Complete paciente, fecha y hora de inicio.");
+
+
+
+
 
 
 
@@ -1714,7 +3572,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1726,7 +3596,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       setValidationMessage(
+
+
+
+
 
 
 
@@ -1734,7 +3612,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       );
+
+
+
+
 
 
 
@@ -1742,7 +3628,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1758,7 +3656,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -1770,7 +3680,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       const formulariosActivos = await formularioService.getCurrentActive();
+
+
+
+
 
 
 
@@ -1782,7 +3704,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       if (!formularioPredeterminado?.id) {
+
+
+
+
 
 
 
@@ -1790,7 +3724,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
           "No hay un formulario activo disponible para asociar a la cita."
+
+
+
+
 
 
 
@@ -1798,7 +3740,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         return;
+
+
+
+
 
 
 
@@ -1810,7 +3760,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       citaId = await appointmentService.create({
+
+
+
+
 
 
 
@@ -1818,11 +3780,27 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         fecha: crearFechaLocal(newAppointment.fecha),
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -1834,7 +3812,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         citaId,
+
+
+
+
 
 
 
@@ -1842,7 +3828,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         formularioNombre: formularioPredeterminado.nombre,
+
+
+
+
 
 
 
@@ -1850,7 +3844,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         formularioVersion: formularioPredeterminado.version,
+
+
+
+
 
 
 
@@ -1858,7 +3860,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -1874,11 +3888,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setValidationMessage("");
 
 
 
+
+
+
+
       setOpenNewAppointment(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -1894,11 +3928,27 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setNewAppointment(emptyAppointment);
 
 
 
+
+
+
+
     } catch (error) {
+
+
+
+
 
 
 
@@ -1910,7 +3960,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       if (citaId) {
+
+
+
+
 
 
 
@@ -1918,7 +3980,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
           await appointmentService.delete(citaId);
+
+
+
+
 
 
 
@@ -1926,7 +3996,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
           console.error(
+
+
+
+
 
 
 
@@ -1934,7 +4012,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
             rollbackError
+
+
+
+
 
 
 
@@ -1942,7 +4028,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -1954,7 +4048,19 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setValidationMessage(
+
+
+
+
 
 
 
@@ -1962,7 +4068,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       );
+
+
+
+
 
 
 
@@ -1970,7 +4084,15 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
       setSaving(false);
+
+
+
+
 
 
 
@@ -1978,7 +4100,27 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2002,6 +4144,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     setSelectedAppointment(apt);
 
 
@@ -2010,7 +4160,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     setActionsOpenId(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -2034,7 +4200,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     setEditAppointment({
+
+
+
+
+
+
+
+
 
 
 
@@ -2050,7 +4240,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       paciente_nombre: apt.paciente_nombre || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -2066,7 +4272,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       tipo_consulta: apt.tipo_consulta || "Primera cita",
+
+
+
+
+
+
+
+
 
 
 
@@ -2082,7 +4304,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       hora_inicio: apt.hora_inicio || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -2098,7 +4336,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       estado: normalizarEstado(apt.estado) || "programada",
+
+
+
+
+
+
+
+
 
 
 
@@ -2114,7 +4368,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       notas: apt.notas || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -2138,6 +4408,22 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     setOpenEditAppointment(true);
 
 
@@ -2146,7 +4432,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2170,7 +4480,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     if (!selectedAppointment?.id) {
+
+
+
+
+
+
+
+
 
 
 
@@ -2186,6 +4512,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       return;
 
 
@@ -2194,7 +4528,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2218,6 +4576,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setValidationMessage("Seleccione un paciente registrado.");
 
 
@@ -2226,7 +4592,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
 
 
 
@@ -2250,7 +4632,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (
+
+
+
+
+
+
+
+
 
 
 
@@ -2266,7 +4672,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       !editAppointment.fecha ||
+
+
+
+
+
+
+
+
 
 
 
@@ -2282,7 +4704,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     ) {
+
+
+
+
+
+
+
+
 
 
 
@@ -2298,6 +4736,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       return;
 
 
@@ -2306,7 +4752,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2330,7 +4800,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       normalizarEstado(editAppointment.estado) !== "cancelada" &&
+
+
+
+
+
+
+
+
 
 
 
@@ -2346,7 +4832,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         editAppointment.fecha,
+
+
+
+
+
+
+
+
 
 
 
@@ -2362,7 +4864,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         selectedAppointment.id
+
+
+
+
+
+
+
+
 
 
 
@@ -2378,7 +4896,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     ) {
+
+
+
+
+
+
+
+
 
 
 
@@ -2394,7 +4928,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         "Ya existe una cita activa en esa fecha y hora. Solo puede reutilizarse si la cita anterior está cancelada."
+
+
+
+
+
+
+
+
 
 
 
@@ -2410,6 +4960,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       return;
 
 
@@ -2418,7 +4976,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2442,7 +5024,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setSaving(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2466,6 +5072,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         ...editAppointment,
 
 
@@ -2474,7 +5088,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         fecha: crearFechaLocal(editAppointment.fecha),
+
+
+
+
+
+
+
+
 
 
 
@@ -2498,7 +5128,39 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await loadData();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2522,7 +5184,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setOpenEditAppointment(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -2538,7 +5216,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setEditAppointment(emptyAppointment);
+
+
+
+
+
+
+
+
 
 
 
@@ -2554,7 +5248,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       console.error("Error editando cita:", error);
+
+
+
+
+
+
+
+
 
 
 
@@ -2570,7 +5280,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -2586,6 +5312,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -2594,7 +5328,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2618,6 +5376,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     try {
 
 
@@ -2626,7 +5392,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setSaving(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -2650,7 +5432,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await appointmentService.update(apt.id, {
+
+
+
+
+
+
+
+
 
 
 
@@ -2666,7 +5472,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         estado: "cancelada",
+
+
+
+
+
+
+
+
 
 
 
@@ -2690,7 +5512,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await loadData();
+
+
+
+
+
+
+
+
 
 
 
@@ -2706,7 +5552,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       console.error("Error cancelando cita:", error);
+
+
+
+
+
+
+
+
 
 
 
@@ -2722,6 +5584,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       setSaving(false);
 
 
@@ -2730,7 +5600,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -2754,7 +5640,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async function handleDeleteAppointment(apt: any) {
+
+
+
+
+
+
+
+
 
 
 
@@ -2770,6 +5680,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     setSaving(true);
 
 
@@ -2778,7 +5696,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     setActionsOpenId(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2810,7 +5752,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     await loadData();
+
+
+
+
+
+
+
+
 
 
 
@@ -2826,7 +5792,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     console.error("Error eliminando cita:", error);
+
+
+
+
+
+
+
+
 
 
 
@@ -2842,7 +5824,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -2858,6 +5856,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   }
 
 
@@ -2866,7 +5872,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2890,6 +5920,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
     const matchesSearch = a.paciente_nombre
 
 
@@ -2898,7 +5936,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       ?.toLowerCase()
+
+
+
+
+
+
+
+
 
 
 
@@ -2922,7 +5976,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const matchesEstado =
+
+
+
+
+
+
+
+
 
 
 
@@ -2946,7 +6024,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return matchesSearch && matchesEstado;
+
+
+
+
+
+
+
+
 
 
 
@@ -2970,7 +6072,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -2986,7 +6112,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       <div className="flex justify-between items-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -3002,7 +6144,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <h1 className="text-3xl font-headline font-bold text-gray-900 flex items-center gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -3018,7 +6176,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             Gestión de Citas
+
+
+
+
+
+
+
+
 
 
 
@@ -3034,7 +6208,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <p className="text-gray-500 mt-1">
+
+
+
+
+
+
+
+
 
 
 
@@ -3050,6 +6240,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           </p>
 
 
@@ -3058,7 +6256,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3082,7 +6304,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           className="bg-primary hover:bg-primary-dark h-11"
+
+
+
+
+
+
+
+
 
 
 
@@ -3098,7 +6336,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             setValidationMessage("");
+
+
+
+
+
+
+
+
 
 
 
@@ -3114,7 +6368,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
 
 
 
@@ -3130,7 +6400,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <Plus className="w-4 h-4 mr-2" />
+
+
+
+
+
+
+
+
 
 
 
@@ -3146,6 +6432,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         </Button>
 
 
@@ -3154,7 +6448,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3178,7 +6496,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         <AppointmentModal
+
+
+
+
+
+
+
+
 
 
 
@@ -3194,7 +6528,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           appointment={newAppointment}
+
+
+
+
+
+
+
+
 
 
 
@@ -3210,7 +6560,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           patients={patients}
+
+
+
+
+
+
+
+
 
 
 
@@ -3226,7 +6592,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             setValidationMessage("");
+
+
+
+
+
+
+
+
 
 
 
@@ -3242,7 +6624,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
 
 
 
@@ -3258,7 +6656,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           submitText="Crear cita"
+
+
+
+
+
+
+
+
 
 
 
@@ -3274,7 +6688,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           validationMessage={validationMessage}
+
+
+
+
+
+
+
+
 
 
 
@@ -3290,6 +6720,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         />
 
 
@@ -3298,7 +6736,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3322,7 +6784,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         <AppointmentModal
+
+
+
+
+
+
+
+
 
 
 
@@ -3338,7 +6816,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           appointment={editAppointment}
+
+
+
+
+
+
+
+
 
 
 
@@ -3354,7 +6848,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           patients={patients}
+
+
+
+
+
+
+
+
 
 
 
@@ -3370,7 +6880,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             setValidationMessage("");
+
+
+
+
+
+
+
+
 
 
 
@@ -3386,7 +6912,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             setSelectedAppointment(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -3402,7 +6944,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           onSubmit={handleUpdateAppointment}
+
+
+
+
+
+
+
+
 
 
 
@@ -3418,7 +6976,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           saving={saving}
+
+
+
+
+
+
+
+
 
 
 
@@ -3434,7 +7008,28 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           setValidationMessage={setValidationMessage}
+          onManageForms={() => {
+            if (selectedAppointment) {
+              handleOpenAppointmentForms(selectedAppointment);
+            }
+          }}
+
+
+
+
+
+
+
+
 
 
 
@@ -3443,6 +7038,14 @@ export default function AppointmentsPage() {
 
 
         />
+
+
+
+
+
+
+
+
 
 
 
@@ -3466,7 +7069,73 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      <CitaFormulariosModal
+        open={openCitaFormularios}
+        onOpenChange={(open) => {
+          setOpenCitaFormularios(open);
+
+          if (!open) {
+            setSelectedAppointmentForForms(null);
+            setAssignedForms([]);
+          }
+        }}
+        appointment={selectedAppointmentForForms}
+        assignedForms={assignedForms}
+        availableForms={availableFormularios}
+        onAssignForm={handleAssignForm}
+        onFillForm={handleFillForm}
+        onViewForm={handleViewForm}
+        onRemoveAssignment={handleRemoveAssignedForm}
+        loading={loadingFormularios || savingFormulario}
+      />
+
+      <CitaFormFiller
+        open={openFillForm}
+        onOpenChange={(open) => {
+          setOpenFillForm(open);
+          if (!open) setSelectedAssignment(null);
+        }}
+        formulario={getAssignmentFormulario(selectedAssignment)}
+        assignment={selectedAssignment}
+        onSave={handleSaveFormResponse}
+        saving={savingFormulario}
+      />
+
+      <VerFormularioCitaModal
+        open={openViewForm}
+        onOpenChange={(open) => {
+          setOpenViewForm(open);
+          if (!open) setSelectedAssignment(null);
+        }}
+        formulario={getAssignmentFormulario(selectedAssignment)}
+        assignment={selectedAssignment}
+      />
+
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+
+
+
+
+
+
+
+
 
 
 
@@ -3482,7 +7151,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+
+
+
+
+
+
+
+
 
 
 
@@ -3498,7 +7183,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             placeholder="Buscar por paciente..."
+
+
+
+
+
+
+
+
 
 
 
@@ -3514,7 +7215,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             value={searchTerm}
+
+
+
+
+
+
+
+
 
 
 
@@ -3530,6 +7247,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           />
 
 
@@ -3538,7 +7263,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3562,7 +7311,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <Button
+
+
+
+
+
+
+
+
 
 
 
@@ -3578,7 +7343,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             className="h-11"
+
+
+
+
+
+
+
+
 
 
 
@@ -3594,7 +7375,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -3610,7 +7407,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             Filtrar
+
+
+
+
+
+
+
+
 
 
 
@@ -3634,7 +7447,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           {filterOpen && (
+
+
+
+
+
+
+
+
 
 
 
@@ -3650,7 +7487,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
               {["todos", "programada", "confirmada", "completada", "cancelada"].map(
+
+
+
+
+
+
+
+
 
 
 
@@ -3666,7 +7519,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   <button
+
+
+
+
+
+
+
+
 
 
 
@@ -3682,7 +7551,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     type="button"
+
+
+
+
+
+
+
+
 
 
 
@@ -3698,7 +7583,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       "w-full text-left px-3 py-2 rounded-lg text-sm capitalize hover:bg-gray-50",
+
+
+
+
+
+
+
+
 
 
 
@@ -3714,7 +7615,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     )}
+
+
+
+
+
+
+
+
 
 
 
@@ -3730,7 +7647,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       setEstadoFilter(estado);
+
+
+
+
+
+
+
+
 
 
 
@@ -3746,7 +7679,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     }}
+
+
+
+
+
+
+
+
 
 
 
@@ -3762,7 +7711,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     {estado}
+
+
+
+
+
+
+
+
 
 
 
@@ -3778,7 +7743,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 )
+
+
+
+
+
+
+
+
 
 
 
@@ -3794,7 +7775,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -3810,6 +7807,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -3818,7 +7823,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3842,7 +7871,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         {loading ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -3858,7 +7903,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+
+
+
+
+
+
+
+
 
 
 
@@ -3874,7 +7935,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -3890,7 +7967,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           <div className="flex flex-col items-center justify-center h-[400px] text-gray-400">
+
+
+
+
+
+
+
+
 
 
 
@@ -3906,7 +7999,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             <p>No se encontraron citas registradas.</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -3922,7 +8031,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
         ) : (
+
+
+
+
+
+
+
+
 
 
 
@@ -3938,7 +8063,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
             <TableHeader className="bg-gray-50/50">
+
+
+
+
+
+
+
+
 
 
 
@@ -3954,7 +8095,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 <TableHead className="py-4 text-center">Paciente</TableHead>
+
+
+
+
+
+
+
+
 
 
 
@@ -3970,7 +8127,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 <TableHead className="py-4 text-center">Hora de inicio</TableHead>
+
+
+
+
+
+
+
+
 
 
 
@@ -3986,7 +8159,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 <TableHead className="py-4 text-center">Estado</TableHead>
+
+
+
+
+
+
+
+
 
 
 
@@ -4002,6 +8191,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 <TableHead className="w-10 text-center"></TableHead>
 
 
@@ -4010,7 +8207,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
               </TableRow>
+
+
+
+
+
+
+
+
 
 
 
@@ -4034,7 +8247,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <TableBody>
+
+
+
+
+
+
+
+
 
 
 
@@ -4050,7 +8287,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                 <TableRow key={apt.id} className="hover:bg-gray-50/50">
+
+
+
+
+
+
+
+
 
 
 
@@ -4066,6 +8319,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     {apt.paciente_nombre}
 
 
@@ -4074,7 +8335,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4098,6 +8383,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     {formatDate(apt.fecha)}
 
 
@@ -4106,7 +8399,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4130,7 +8447,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     {apt.hora_inicio}
+
+
+
+
+
+
+
+
 
 
 
@@ -4154,7 +8487,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <TableCell className="text-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -4170,7 +8527,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4194,7 +8575,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     <div className="flex justify-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -4210,7 +8607,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         {apt.estado}
+
+
+
+
+
+
+
+
 
 
 
@@ -4226,6 +8639,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     </div>
 
 
@@ -4234,7 +8655,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4258,7 +8703,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     {Number(apt.monto) > 0
+
+
+
+
+
+
+
+
 
 
 
@@ -4274,6 +8735,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       : "N/A"}
 
 
@@ -4282,7 +8751,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4306,7 +8799,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                     <Button
+
+
+
+
+
+
+
+
 
 
 
@@ -4322,7 +8831,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       size="icon"
+
+
+
+
+
+
+
+
 
 
 
@@ -4338,7 +8863,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       onClick={() =>
+
+
+
+
+
+
+
+
 
 
 
@@ -4354,7 +8895,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           actionsOpenId === apt.id ? null : apt.id
+
+
+
+
+
+
+
+
 
 
 
@@ -4370,7 +8927,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       }
+
+
+
+
+
+
+
+
 
 
 
@@ -4386,7 +8959,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       <MoreVertical className="w-4 h-4 text-gray-400" />
+
+
+
+
+
+
+
+
 
 
 
@@ -4410,7 +8999,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     {actionsOpenId === apt.id && (
+
+
+
+
+
+
+
+
 
 
 
@@ -4426,7 +9039,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         <button
+
+
+
+
+
+
+
+
 
 
 
@@ -4442,7 +9071,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-50"
+
+
+
+
+
+
+
+
 
 
 
@@ -4458,7 +9103,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         >
+
+
+
+
+
+
+
+
 
 
 
@@ -4474,7 +9135,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4498,7 +9183,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           type="button"
+
+
+
+
+
+
+
+
 
 
 
@@ -4514,7 +9215,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           onClick={() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4530,7 +9247,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                             abrirCorreoNotificacionCita({
+
+
+
+
+
+
+
+
 
 
 
@@ -4546,7 +9279,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                               paciente_nombre: apt.paciente_nombre || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -4562,7 +9311,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                               tipo_consulta: apt.tipo_consulta || "Consulta",
+
+
+
+
+
+
+
+
 
 
 
@@ -4578,7 +9343,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                               hora_inicio: apt.hora_inicio || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -4594,7 +9375,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                               estado: apt.estado || "programada",
+
+
+
+
+
+
+
+
 
 
 
@@ -4610,7 +9407,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                               notas: apt.notas || "",
+
+
+
+
+
+
+
+
 
 
 
@@ -4626,6 +9439,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           }}
 
 
@@ -4634,7 +9455,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         >
+
+
+
+
+
+
+
+
 
 
 
@@ -4650,7 +9487,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4674,7 +9535,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           type="button"
+
+
+
+
+
+
+
+
 
 
 
@@ -4690,7 +9567,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           onClick={() => handleDeleteAppointment(apt)}
+
+
+
+
+
+
+
+
 
 
 
@@ -4706,6 +9599,14 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           Eliminar cita
 
 
@@ -4714,7 +9615,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                         </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4738,7 +9663,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           type="button"
+
+
+
+
+
+
+
+
 
 
 
@@ -4754,7 +9695,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           onClick={() => handleCancelAppointment(apt)}
+
+
+
+
+
+
+
+
 
 
 
@@ -4770,7 +9727,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                           Cancelar cita
+
+
+
+
+
+
+
+
 
 
 
@@ -4786,7 +9759,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -4802,7 +9791,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
                   </TableCell>
+
+
+
+
+
+
+
+
 
 
 
@@ -4818,7 +9823,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
               ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -4834,7 +9855,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
           </Table>
+
+
+
+
+
+
+
+
 
 
 
@@ -4850,7 +9887,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -4866,7 +9919,23 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
 
 
 
@@ -4890,7 +9959,31 @@ export default function AppointmentsPage() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function AppointmentModal({
+
+
+
+
+
+
+
+
 
 
 
@@ -4906,7 +9999,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -4922,7 +10031,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   onClose,
+
+
+
+
+
+
+
+
 
 
 
@@ -4938,7 +10063,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   submitText,
+
+
+
+
+
+
+
+
 
 
 
@@ -4954,7 +10095,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   validationMessage,
+
+
+
+
+
+
+
+
 
 
 
@@ -4970,7 +10127,24 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   patients,
+  onManageForms,
+
+
+
+
+
+
+
+
 
 
 
@@ -4986,7 +10160,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   title: string;
+
+
+
+
+
+
+
+
 
 
 
@@ -5002,7 +10192,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   setAppointment: any;
+
+
+
+
+
+
+
+
 
 
 
@@ -5018,7 +10224,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   onSubmit: () => void;
+
+
+
+
+
+
+
+
 
 
 
@@ -5034,7 +10256,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   saving: boolean;
+
+
+
+
+
+
+
+
 
 
 
@@ -5050,6 +10288,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   setValidationMessage: (message: string) => void;
 
 
@@ -5058,7 +10304,25 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   patients: any[];
+
+  onManageForms?: () => void;
+
+
+
+
+
+
+
+
 
 
 
@@ -5074,7 +10338,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   const disabled =
+
+
+
+
+
+
+
+
 
 
 
@@ -5090,7 +10370,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
     !appointment.pacienteId ||
+
+
+
+
+
+
+
+
 
 
 
@@ -5106,7 +10402,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
     !appointment.fecha ||
+
+
+
+
+
+
+
+
 
 
 
@@ -5130,7 +10442,27 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const horarios = generarHorarios();
+
+
+
+
 
 
 
@@ -5138,15 +10470,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
   const patientSearch = appointment.paciente_nombre.trim().toLowerCase();
+
+
+
+
 
 
 
   const filteredPatients = patients.filter((patient: any) => {
 
+
+
     const fullName =
 
+
+
       `${patient.nombre ?? ""} ${patient.apellidos ?? ""}`.trim().toLowerCase();
+
+
+
+
 
 
 
@@ -5154,17 +10502,49 @@ function AppointmentModal({
 
 
 
+
+
+
+
     return (
+
+
 
       !patientSearch ||
 
+
+
       fullName.includes(patientSearch) ||
+
+
 
       email.includes(patientSearch)
 
+
+
     );
 
+
+
   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5190,7 +10570,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -5206,7 +10602,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
         <div className="flex items-center justify-between mb-5">
+
+
+
+
+
+
+
+
 
 
 
@@ -5230,7 +10642,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <button
+
+
+
+
+
+
+
+
 
 
 
@@ -5246,7 +10682,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             onClick={onClose}
+
+
+
+
+
+
+
+
 
 
 
@@ -5262,7 +10714,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -5278,6 +10746,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           </button>
 
 
@@ -5286,7 +10762,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5310,6 +10810,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           {validationMessage && (
 
 
@@ -5318,7 +10826,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -5342,6 +10866,22 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <p className="text-sm text-amber-700 mt-1">
 
 
@@ -5350,7 +10890,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 {validationMessage}
+
+
+
+
+
+
+
+
 
 
 
@@ -5374,7 +10930,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <button
+
+
+
+
+
+
+
+
 
 
 
@@ -5390,7 +10970,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 className="mt-2 text-xs font-medium text-amber-800 hover:underline"
+
+
+
+
+
+
+
+
 
 
 
@@ -5406,7 +11002,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -5422,6 +11034,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               </button>
 
 
@@ -5430,7 +11050,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -5454,185 +11090,387 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="relative">
+
+
 
             <Input
 
+
+
               placeholder="Escriba o seleccione un paciente"
+
+
 
               autoComplete="off"
 
+
+
               value={appointment.paciente_nombre}
+
+
 
               onFocus={() => setShowPatientDropdown(true)}
 
+
+
               onChange={(e) => {
+
+
 
                 const value = e.target.value;
 
 
 
+
+
+
+
                 const selectedPatient = patients.find((patient: any) => {
+
+
 
                   const fullName =
 
+
+
                     `${patient.nombre ?? ""} ${patient.apellidos ?? ""}`
 
+
+
                       .trim()
+
+
 
                       .toLowerCase();
 
 
 
+
+
+
+
                   return fullName === value.trim().toLowerCase();
 
+
+
                 });
+
+
+
+
 
 
 
                 setAppointment({
 
+
+
                   ...appointment,
+
+
 
                   pacienteId: selectedPatient?.id || "",
 
+
+
                   paciente_nombre: value,
 
+
+
                   paciente_correo: selectedPatient?.email || "",
+
+
 
                 });
 
 
 
+
+
+
+
                 setShowPatientDropdown(true);
 
+
+
               }}
+
+
 
               onBlur={() => {
 
+
+
                 setTimeout(() => setShowPatientDropdown(false), 150);
+
+
 
               }}
 
+
+
               className="pr-10"
+
+
 
             />
 
 
 
+
+
+
+
             <button
+
+
 
               type="button"
 
+
+
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+
+
 
               onMouseDown={(e) => e.preventDefault()}
 
+
+
               onClick={() => setShowPatientDropdown((prev) => !prev)}
+
+
 
               aria-label="Mostrar pacientes"
 
+
+
             >
 
+
+
               ▼
+
+
 
             </button>
 
 
 
+
+
+
+
             {showPatientDropdown && (
+
+
 
               <div className="absolute z-[100] mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
 
+
+
                 {filteredPatients.length > 0 ? (
+
+
 
                   filteredPatients.map((patient: any) => {
 
+
+
                     const fullName =
+
+
 
                       `${patient.nombre ?? ""} ${patient.apellidos ?? ""}`.trim();
 
 
 
+
+
+
+
                     return (
+
+
 
                       <button
 
+
+
                         key={patient.id}
+
+
 
                         type="button"
 
+
+
                         className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
 
+
+
                         onMouseDown={(e) => {
+
+
 
                           e.preventDefault();
 
 
 
+
+
+
+
                           setAppointment({
+
+
 
                             ...appointment,
 
+
+
                             pacienteId: patient.id,
+
+
 
                             paciente_nombre: fullName,
 
+
+
                             paciente_correo: patient.email || "",
+
+
 
                           });
 
 
 
+
+
+
+
                           setShowPatientDropdown(false);
+
+
 
                         }}
 
+
+
                       >
+
+
 
                         <div className="font-medium text-gray-900">
 
+
+
                           {fullName}
+
+
 
                         </div>
 
 
 
+
+
+
+
                         {patient.email && (
+
+
 
                           <div className="text-xs text-gray-500 mt-1">
 
+
+
                             {patient.email}
+
+
 
                           </div>
 
+
+
                         )}
+
+
 
                       </button>
 
+
+
                     );
+
+
 
                   })
 
+
+
                 ) : (
+
+
 
                   <div className="px-4 py-3 text-sm text-gray-500">
 
+
+
                     No se encontraron pacientes. Puede escribir el nombre manualmente.
+
+
 
                   </div>
 
+
+
                 )}
+
+
 
               </div>
 
+
+
             )}
+
+
 
           </div>
 
 
 
+
+
+
+
           <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -5648,7 +11486,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             placeholder="Correo del paciente"
+
+
+
+
+
+
+
+
 
 
 
@@ -5664,7 +11518,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             onChange={(e) =>
+
+
+
+
+
+
+
+
 
 
 
@@ -5680,7 +11550,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 ...appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -5696,7 +11582,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               })
+
+
+
+
+
+
+
+
 
 
 
@@ -5712,7 +11614,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5736,7 +11662,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             className="w-full border rounded-lg p-3"
+
+
+
+
+
+
+
+
 
 
 
@@ -5752,7 +11694,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             onChange={(e) =>
+
+
+
+
+
+
+
+
 
 
 
@@ -5768,7 +11726,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 ...appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -5784,7 +11758,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               })
+
+
+
+
+
+
+
+
 
 
 
@@ -5800,7 +11790,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -5816,7 +11822,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <option value="Seguimiento">Seguimiento</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -5832,7 +11854,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <option value="Emergencia">Emergencia</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -5856,7 +11894,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -5872,7 +11934,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             value={appointment.fecha}
+
+
+
+
+
+
+
+
 
 
 
@@ -5888,7 +11966,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               setAppointment({
+
+
+
+
+
+
+
+
 
 
 
@@ -5904,7 +11998,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 fecha: e.target.value,
+
+
+
+
+
+
+
+
 
 
 
@@ -5920,6 +12030,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             }
 
 
@@ -5928,7 +12046,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5952,6 +12094,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <select
 
 
@@ -5960,7 +12110,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               className="w-full border rounded-lg p-3"
+
+
+
+
+
+
+
+
 
 
 
@@ -5976,7 +12142,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               onChange={(e) =>
+
+
+
+
+
+
+
+
 
 
 
@@ -5992,7 +12174,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                   ...appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -6008,7 +12206,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 })
+
+
+
+
+
+
+
+
 
 
 
@@ -6024,7 +12238,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -6040,7 +12270,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               {horarios.map((hora) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -6056,7 +12302,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                   {hora}
+
+
+
+
+
+
+
+
 
 
 
@@ -6072,6 +12334,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               ))}
 
 
@@ -6080,7 +12350,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             </select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6104,7 +12398,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               className="w-full border rounded-lg p-3"
+
+
+
+
+
+
+
+
 
 
 
@@ -6120,7 +12430,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               onChange={(e) =>
+
+
+
+
+
+
+
+
 
 
 
@@ -6136,7 +12462,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                   ...appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -6152,7 +12494,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 })
+
+
+
+
+
+
+
+
 
 
 
@@ -6168,7 +12526,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -6184,7 +12558,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               {horarios.map((hora) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -6200,7 +12590,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                   {hora}
+
+
+
+
+
+
+
+
 
 
 
@@ -6216,7 +12622,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -6232,7 +12654,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6256,7 +12702,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             className="w-full border rounded-lg p-3"
+
+
+
+
+
+
+
+
 
 
 
@@ -6272,7 +12734,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             onChange={(e) =>
+
+
+
+
+
+
+
+
 
 
 
@@ -6288,7 +12766,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 ...appointment,
+
+
+
+
+
+
+
+
 
 
 
@@ -6304,7 +12798,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               })
+
+
+
+
+
+
+
+
 
 
 
@@ -6320,7 +12830,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -6336,7 +12862,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <option value="confirmada">Confirmada</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -6352,7 +12894,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             <option value="cancelada">Cancelada</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -6376,7 +12934,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -6392,7 +12974,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             min="0"
+
+
+
+
+
+
+
+
 
 
 
@@ -6408,7 +13006,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             value={appointment.monto || ""}
+
+
+
+
+
+
+
+
 
 
 
@@ -6424,7 +13038,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               setAppointment({
+
+
+
+
+
+
+
+
 
 
 
@@ -6440,7 +13070,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 monto: Number(e.target.value),
+
+
+
+
+
+
+
+
 
 
 
@@ -6456,6 +13102,14 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             }
 
 
@@ -6464,7 +13118,31 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
           />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6488,7 +13166,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             className="w-full border rounded-lg p-3 min-h-[90px]"
+
+
+
+
+
+
+
+
 
 
 
@@ -6504,7 +13198,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             value={appointment.notas}
+
+
+
+
+
+
+
+
 
 
 
@@ -6520,7 +13230,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
               setAppointment({
+
+
+
+
+
+
+
+
 
 
 
@@ -6536,7 +13262,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
                 notas: e.target.value,
+
+
+
+
+
+
+
+
 
 
 
@@ -6552,7 +13294,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
             }
+
+
+
+
+
+
+
+
 
 
 
@@ -6576,7 +13334,6 @@ function AppointmentModal({
 
 
 
-          <div className="flex justify-end gap-2 pt-2">
 
 
 
@@ -6584,7 +13341,6 @@ function AppointmentModal({
 
 
 
-            <Button type="button" variant="outline" onClick={onClose}>
 
 
 
@@ -6592,111 +13348,42 @@ function AppointmentModal({
 
 
 
-              Cancelar
 
 
-
-
-
-
-
-            </Button>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            <Button type="button" onClick={onSubmit} disabled={disabled}>
-
-
-
-
-
-
-
-              {saving ? (
-
-
-
-
-
-
-
-                <>
-
-
-
-
-
-
-
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-
-
-
-
-
-
-
-                  Guardando...
-
-
-
-
-
-
-
-                </>
-
-
-
-
-
-
-
-              ) : (
-
-
-
-
-
-
-
-                submitText
-
-
-
-
-
-
-
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <div>
+              {onManageForms && (
+                <Button type="button" variant="outline" onClick={onManageForms}>
+                  Formularios
+                </Button>
               )}
+            </div>
 
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
 
-
-
-
-
-
-            </Button>
-
-
-
-
-
-
-
+              <Button type="button" onClick={onSubmit} disabled={disabled}>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  submitText
+                )}
+              </Button>
+            </div>
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -6712,7 +13399,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -6728,7 +13431,23 @@ function AppointmentModal({
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
 
 
 
