@@ -350,7 +350,7 @@ export default function DashboardPage() {
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [medicalRecords, setMedicalRecords] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
-  const [period, setPeriod] = useState<Period>("dia");
+  const [period, setPeriod] = useState<Period>("dia"); //para cumplir con TC-DASH-001
   const [referenceDate, setReferenceDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [openAppointmentDetail, setOpenAppointmentDetail] = useState(false);
