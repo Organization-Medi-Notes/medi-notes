@@ -1175,8 +1175,8 @@ export default function DashboardPage() {
 
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Últimos movimientos</h2>
-              <p className="text-sm text-gray-500 mt-1">Cambios recientes en citas y pacientes.</p>
+              <h2 className="text-xl font-bold text-gray-900">Historial de cambios</h2>
+              <p className="text-sm text-gray-500 mt-1">Cambios históricos en citas y pacientes.</p>
             </div>
 
             <div className="card-notion p-6">
