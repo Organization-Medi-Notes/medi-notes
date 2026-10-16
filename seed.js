@@ -1,12 +1,44 @@
 /**
  * SEED - Datos de prueba para Medi Notes
  *
- * Crea N pacientes con M consultas cada uno de forma aleatoria en Firestore.
- * Todos los registros se marcan con _seed: true para poder eliminarlos fácilmente.
+ * Crea datos aleatorios en TODOS los módulos de la aplicación para poder
+ * probarla o demostrarla con información realista:
+ *
+ *   Colección Firestore         Módulo donde se ve
+ *   ─────────────────────────   ────────────────────────────────────────────
+ *   pacientes                   Pacientes, Expedientes, Dashboard
+ *   consultas                   Perfil del paciente, Expedientes, Reportes
+ *   citas                       Citas, Calendario, Dashboard, Reportes
+ *   formularios_clinicos        Formularios (activos, plantillas, archivados)
+ *   formularios_paciente        Perfil del paciente, Expedientes
+ *   formularios_citas           Formularios asignados a una cita
+ *   documentos                  Perfil del paciente, Expedientes
+ *   expedientes                 Dashboard (ver nota más abajo)
+ *
+ * Todos los registros se marcan con _seed: true para poder eliminarlos
+ * fácilmente con unseed.js sin tocar datos reales.
+ *
+ * NO se crean: usuarios (dependen de Firebase Authentication), configuracion
+ * (es el perfil real del médico y se sobrescribiría) ni auditorias (ninguna
+ * pantalla las lee).
  *
  * CONFIGURACIÓN:
- * - Cambiá CANTIDAD_PACIENTES para controlar cuántos pacientes se crean
- * - Cambiá CONSULTAS_POR_PACIENTE para controlar cuántas consultas tiene cada uno
+ * - Cambiá las constantes de la sección "CONFIGURACIÓN" para controlar cuántos
+ *   datos de cada tipo se crean. Poné 0 para omitir ese tipo de dato.
+ * - Los datos se crean para el médico indicado en DOCTOR_ID. Tiene que ser el
+ *   UID del usuario con el que iniciás sesión; si no, no vas a ver nada en la
+ *   aplicación. También se puede indicar con la variable SEED_DOCTOR_ID.
+ *
+ * NOTAS:
+ * - Si corrés el seed varias veces seguidas se acumulan datos (por ejemplo,
+ *   formularios con el mismo nombre). Corré unseed.js antes para empezar limpio.
+ * - La colección "expedientes" hoy no la escribe ninguna pantalla de la
+ *   aplicación; solo la lee el Dashboard (resumen documental y documento de
+ *   apoyo clínico). Sembrarla permite probar esas secciones, pero no
+ *   reemplaza corregir ese origen de datos. Poné EXPEDIENTES_POR_PACIENTE = 0
+ *   si no la querés.
+ * - Los documentos adjuntos apuntan a un PDF público de ejemplo (W3C), no a
+ *   archivos reales del paciente.
  *
  * REQUISITOS:
  * - Tener un archivo .env en la raíz del proyecto con las variables de Firebase
@@ -18,8 +50,9 @@
 
 require("dotenv").config({ path: ".env" });
 
+const { randomUUID } = require("crypto");
 const { initializeApp } = require("firebase/app");
-const { getFirestore, collection, addDoc, Timestamp } = require("firebase/firestore");
+const { getFirestore, collection, addDoc, doc, setDoc, Timestamp } = require("firebase/firestore");
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -33,13 +66,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const DOCTOR_ID = "9qYah3CPYOfotk8zhiMqGYgnm112";
+const DOCTOR_ID = process.env.SEED_DOCTOR_ID || "9qYah3CPYOfotk8zhiMqGYgnm112";
 
-// ── Cambiá estos números según lo que necesitás ──
-const CANTIDAD_PACIENTES = 20;  // cuántos pacientes querés
-const CONSULTAS_POR_PACIENTE = 5;  // cuántas consultas por paciente
+// ══════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN: cambiá estos números según lo que necesitás
+//  (poné 0 para no crear ese tipo de dato)
+// ══════════════════════════════════════════════════════════════
 
-// ── Datos aleatorios ── 
+// ── Pacientes y su historial clínico ──
+const CANTIDAD_PACIENTES = 20;           // cuántos pacientes querés
+const CONSULTAS_POR_PACIENTE = 10;       // cuántas consultas por paciente
+const EXPEDIENTES_POR_PACIENTE = 1;      // registros de la colección "expedientes" por paciente
+const DOCUMENTOS_POR_PACIENTE = 1;       // documentos adjuntos (PDF) por paciente
+
+// ── Agenda (módulos Citas y Calendario) ──
+const CITAS_POR_PACIENTE = 8;            // cuántas citas por paciente
+const DIAS_CITAS_PASADAS = 180;          // las citas se reparten hasta N días atrás...
+const DIAS_CITAS_FUTURAS = 45;           // ...y hasta N días hacia adelante
+
+// ── Formularios clínicos ──
+const CANTIDAD_FORMULARIOS = 6;          // cuántos formularios crear (máximo 8, el tamaño del catálogo)
+const VERSIONES_POR_FORMULARIO = 2;      // 1 = sin historial; 2 o más crean versiones anteriores
+const FORMULARIOS_COMO_PLANTILLA = 1;     // de los formularios anteriores, cuántos quedan como plantilla
+const FORMULARIOS_ARCHIVADOS = 2;        // de los formularios anteriores, cuántos quedan archivados
+const FORMULARIOS_RESPONDIDOS_POR_PACIENTE = 3;  // formularios distintos que responde cada paciente
+const PORCENTAJE_CITAS_CON_FORMULARIO = 30;      // % de citas con un formulario asignado (0 a 100)
+
 // ── Datos aleatorios ──
 const NOMBRES = ["Carlos", "María", "Luis", "Ana", "Jorge", "Sofía", "Diego", "Valentina", "Andrés", "Natalia", "Roberto", "Paola", "Miguel", "Laura", "Esteban", "Fernando", "Gabriela", "Alejandro", "Isabella", "Sebastián", "Camila", "Daniel", "Valeria", "Mateo", "Lucía", "Ricardo", "Daniela", "Arturo", "Mariana", "Pablo", "Verónica", "Joaquín", "Adriana", "Marcos", "Rebeca", "Emilio", "Patricia", "Nicolás", "Jimena", "Raúl", "Silvia", "Héctor", "Mónica", "Iván", "Carla", "Óscar", "Yolanda", "Enrique", "Beatriz", "Sergio", "Claudia", "Víctor", "Irene", "Alfonso", "Nathalie", "Rodrigo", "Fabiola", "Ignacio", "Lorena", "Felipe", "Sandra", "Ernesto", "Rocío", "Germán", "Esmeralda", "Mauricio", "Alicia", "Tomás", "Pilar", "Ramón", "Esperanza", "Guillermo", "Miriam", "Álvaro", "Carmen", "Eduardo", "Teresa", "César", "Graciela", "Manuel", "Liliana", "Javier", "Estela", "Leonel", "Sonia", "Cristian", "Olga", "Hugo", "Norma", "Bernal", "Karina", "Rolando", "Wendy", "Wilberth", "Xinia", "Yorleny", "Zulay", "Aarón", "Brenda", "Gerardo", "Hazel"];
 
@@ -172,7 +224,162 @@ const INDICACIONES = ["Dieta baja en sodio y grasas saturadas", "Hidratación ab
 const NOTAS_CLINICAS = ["Paciente colaborador, comprende y acepta las indicaciones médicas.", "Se refiere a especialista para manejo conjunto de la patología.", "Buen control de la enfermedad desde la última visita hace 3 meses.", "Paciente refiere alto nivel de estrés laboral como factor desencadenante.", "Sin cambios significativos respecto a la consulta anterior.", "Paciente presenta buena adherencia al tratamiento farmacológico.", "Se detecta abandono del tratamiento por efectos secundarios. Se ajusta esquema.", "Paciente expresa preocupación por diagnóstico. Se brinda consejería y apoyo.", "Se realizó educación sobre reconocimiento de signos de alarma.", "Paciente llega acompañado por familiar que confirma los síntomas referidos.", "Se solicitan exámenes de laboratorio para control rutinario.", "Resultados de laboratorio previos dentro de rangos normales.", "Paciente con exámenes alterados. Se modifica tratamiento según resultado.", "Se realiza electrocardiograma en consultorio. Sin hallazgos agudos.", "Se aplica vacuna antigripal y antitetánica según esquema nacional.", "Paciente refiere mejoría del 70% desde el inicio del tratamiento.", "Sin eventos adversos reportados con el medicamento actual.", "Paciente con dificultad para costear los medicamentos. Se busca alternativa genérica.", "Se coordina con trabajo social para apoyo económico al paciente.", "Paciente asistió solo, sin red de apoyo familiar evidente.", "Se documenta consentimiento informado para procedimiento.", "Paciente firmó rechazo voluntario de hospitalización.", "Se informa al paciente sobre naturaleza crónica de su enfermedad.", "Consulta de seguimiento post-alta hospitalaria. Evolución favorable.", "Paciente referido por médico de EBAIS por descompensación.", "Se documenta comunicación con especialista vía interconsulta.", "Paciente con comorbilidades múltiples. Manejo interdisciplinario necesario.", "Se realiza ajuste de medicamento por interacción medicamentosa detectada.", "Paciente con historial de múltiples ingresos por misma causa.", "Paciente viaja al extranjero próximamente. Se ajusta plan de seguimiento.", "Paciente refiere cumplimiento del 80% de las indicaciones previas.", "Se observa mejoría en el control metabólico respecto a visita anterior.", "Paciente con deterioro funcional progresivo. Se evalúa necesidad de apoyo.", "Se explica al paciente importancia de no suspender tratamiento bruscamente.", "Consulta motivada por cambio de medicamento sugerido por farmacia.", "Paciente en duelo reciente. Se considera impacto emocional en la salud.", "Se detecta posible reacción adversa al medicamento. Se notifica a farmacovigilancia.", "Paciente pediátrico bien desarrollado para la edad. Padres tranquilizados.", "Adolescente con problemas de adherencia. Se negocia plan personalizado.", "Adulto mayor con polifarmacia. Se realiza revisión completa de medicamentos.", "Paciente embarazada. Se ajustan medicamentos seguros para gestación.", "Período postparto. Evolución normal. Lactancia materna establecida.", "Se documenta violencia intrafamiliar. Se activa protocolo de protección.", "Paciente con limitación cognitiva. Explicación dirigida al cuidador principal.", "Se realizó examen físico completo sin hallazgos de alarma.", "Paciente con dolor crónico bien manejado con esquema actual.", "Se introduce nueva terapia biológica. Consentimiento informado firmado.", "Paciente en lista de espera para cirugía. Se mantiene tratamiento conservador.", "Recuperación postquirúrgica dentro de los parámetros esperados.", "Se detectan signos de desnutrición. Se refiere a nutricionista urgente.", "Paciente fumador activo. Se ofrece programa de cesación tabáquica.", "Paciente con consumo riesgoso de alcohol. Se aplica tamizaje AUDIT.", "Se recomienda actividad física regular adaptada a la condición del paciente.", "Paciente con sedentarismo marcado. Se motiva al cambio de estilo de vida.", "Trabajo social documentó condiciones de vivienda precarias.", "Paciente inmigrante sin documentos. Se garantiza atención sin discriminación.", "Barrera idiomática presente. Se utilizó intérprete para la consulta.", "Se realizó lectura de prueba de tuberculina. Resultado negativo.", "Cultivo de orina pendiente. Se da tratamiento empírico mientras espera.", "Biopsia de piel enviada a patología. Se espera resultado en 10 días.", "Imagen de resonancia magnética programada para próximas dos semanas.", "Seguimiento oncológico sin evidencia de recurrencia por el momento.", "Paciente en cuidados paliativos con buena calidad de vida.", "Familia informada sobre pronóstico. Decisiones de tratamiento acordadas.", "Se documenta voluntad anticipada del paciente en el expediente.", "Paciente solicita segunda opinión médica. Se respeta su decisión.", "Consulta telefónica de seguimiento realizada sin necesidad de visita.", "Teleconsulta realizada por plataforma digital del sistema de salud.", "Se entrega resumen de consulta escrito al paciente para su referencia.", "Carta de referencia enviada a especialista con historial completo.", "Informe médico legal emitido según solicitud del paciente.", "Certificado de discapacidad tramitado según normativa vigente.", "Incapacidad laboral otorgada por 5 días hábiles.", "Alta médica definitiva. Paciente estable sin necesidad de seguimiento.", "Control programado en 1 mes con exámenes de laboratorio incluidos.", "Próxima cita en 3 meses salvo aparición de nuevos síntomas.", "Paciente dado de alta con instrucciones claras de cuándo consultar.", "Sin indicación de nueva cita por el momento. Consulta si es necesario.", "Derivación a medicina física y rehabilitación por deterioro funcional.", "Interconsulta a cardiología por hallazgo de soplo nuevo en auscultación.", "Valoración por psiquiatría solicitada por deterioro de salud mental.", "Referencia a oftalmología por retinopatía detectada en fondo de ojo.", "Valoración urgente por nefrología por deterioro agudo de función renal.", "Se documenta discusión del caso en sesión clínica del servicio.", "Caso presentado en comité de tumores. Decisión de tratamiento acordada.", "Notificación obligatoria a epidemiología por enfermedad de declaración.", "Se reporta caso a sistema de farmacovigilancia institucional.", "Revisión de medicamentos realizada con farmacéutico clínico presente.", "Plan de cuidados actualizado con equipo de enfermería.", "Comunicación con médico tratante de atención primaria.", "Consulta con medicina interna para manejo de patología compleja.", "Paciente dado de alta con epícrisis completa y plan de seguimiento.", "Se realizó procedimiento exitosamente sin complicaciones inmediatas.", "Consentimiento informado firmado antes del procedimiento.", "Paciente agradece atención. Refiere sentirse bien informado y apoyado.", "Documentación clínica completa y actualizada en expediente electrónico.", "Se adjunta copia de estudios de imagen al expediente del paciente.", "Resumen de hospitalización revisado y concordante con evolución clínica."];
 
 
+// ── Catálogos para citas, documentos y expedientes ──
 
+// Son exactamente los 4 tipos que ofrece el selector de la pantalla de Citas.
+// Se repiten algunos para que Seguimiento y Control sean más frecuentes.
+const TIPOS_CONSULTA_CITA = ["Seguimiento", "Seguimiento", "Control", "Control", "Primera cita", "Emergencia"];
+
+const MONTOS_CITA = [15000, 25000, 30000, 35000, 50000, 75000, 100000];
+
+const NOTAS_CITA = [
+  "",
+  "Paciente solicita revisión de exámenes de laboratorio.",
+  "Confirmar asistencia por teléfono un día antes.",
+  "Traer el carné de vacunación.",
+  "Control posterior al ajuste de medicamentos.",
+  "Primera valoración del paciente.",
+  "Seguimiento de la evolución del tratamiento.",
+  "Paciente refiere mejoría desde la última visita.",
+  "Ayuno de 8 horas para toma de muestras.",
+];
+
+const NOMBRES_DOCUMENTOS = [
+  "Resultados de laboratorio",
+  "Radiografía de tórax",
+  "Electrocardiograma",
+  "Informe de ultrasonido",
+  "Receta médica",
+  "Consentimiento informado",
+  "Referencia a especialista",
+  "Epicrisis de hospitalización",
+];
+
+// PDF público de ejemplo del W3C (existe y responde). Su tamaño real es 13 264 bytes.
+const URL_DOCUMENTO_EJEMPLO = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+const TAMAÑO_DOCUMENTO_EJEMPLO = 13264;
+
+const DOSIS_MEDICAMENTO = ["1 tableta", "2 tabletas", "1 cápsula", "5 ml", "10 ml"];
+const FRECUENCIAS_MEDICAMENTO = ["Cada 6 horas", "Cada 8 horas", "Cada 12 horas", "Una vez al día"];
+const DURACIONES_MEDICAMENTO = ["5 días", "7 días", "10 días", "30 días", "Uso continuo"];
+
+// ── Catálogo de formularios clínicos ──
+// Cada campo usa uno de los 9 tipos que ofrece el constructor de formularios:
+// text, textarea, number, date, select, multiselect, checkbox, diagnostico, medicamento.
+// "ejemplos", "rango" y "decimales" solo sirven para generar respuestas de ejemplo;
+// no se guardan dentro del formulario.
+const CATALOGO_FORMULARIOS = [
+  {
+    nombre: "Historia clínica general",
+    especialidad: "Medicina general",
+    descripcion: "Registro de antecedentes, hábitos y motivo de consulta del paciente.",
+    campos: [
+      { tipo: "textarea", etiqueta: "Motivo de consulta", placeholder: "Describa el motivo principal", requerido: true, ejemplos: MOTIVOS_CONSULTA },
+      { tipo: "textarea", etiqueta: "Antecedentes personales", placeholder: "Enfermedades previas y cirugías", ejemplos: ["Hipertensión controlada desde hace 5 años", "Sin antecedentes patológicos relevantes", "Apendicectomía en 2015", "Asma en la infancia", "Diabetes tipo 2 en tratamiento"] },
+      { tipo: "text", etiqueta: "Alergias conocidas", placeholder: "Medicamentos o alimentos", ejemplos: ["Ninguna conocida", "Penicilina", "Mariscos", "Polen", "Ibuprofeno"] },
+      { tipo: "checkbox", etiqueta: "Fuma actualmente", placeholder: "El paciente fuma" },
+      { tipo: "select", etiqueta: "Nivel de actividad física", requerido: true, opciones: ["Sedentario", "Ligero", "Moderado", "Intenso"] },
+      { tipo: "date", etiqueta: "Fecha de la última consulta médica" },
+      { tipo: "textarea", etiqueta: "Observaciones generales", placeholder: "Notas adicionales", ejemplos: NOTAS_CLINICAS },
+    ],
+  },
+  {
+    nombre: "Control pediátrico",
+    especialidad: "Pediatría",
+    descripcion: "Seguimiento del crecimiento y desarrollo en consulta pediátrica.",
+    campos: [
+      { tipo: "number", etiqueta: "Peso (kg)", placeholder: "Peso en kilogramos", requerido: true, rango: [3, 30], decimales: 1 },
+      { tipo: "number", etiqueta: "Talla (cm)", placeholder: "Talla en centímetros", requerido: true, rango: [50, 130], decimales: 0 },
+      { tipo: "number", etiqueta: "Perímetro cefálico (cm)", placeholder: "Perímetro en centímetros", rango: [33, 55], decimales: 1 },
+      { tipo: "checkbox", etiqueta: "Esquema de vacunación al día", placeholder: "Vacunas completas para la edad" },
+      { tipo: "select", etiqueta: "Tipo de alimentación", requerido: true, opciones: ["Lactancia materna", "Fórmula", "Mixta", "Alimentación complementaria"] },
+      { tipo: "textarea", etiqueta: "Desarrollo psicomotor", placeholder: "Hitos alcanzados", ejemplos: ["Sostiene la cabeza, sonríe y sigue objetos con la mirada.", "Camina solo y dice palabras sencillas.", "Desarrollo acorde a la edad, sin alteraciones.", "Gatea y balbucea con normalidad."] },
+      { tipo: "date", etiqueta: "Fecha del próximo control" },
+    ],
+  },
+  {
+    nombre: "Valoración cardiovascular",
+    especialidad: "Cardiología",
+    descripcion: "Evaluación de signos y síntomas cardiovasculares.",
+    campos: [
+      { tipo: "text", etiqueta: "Presión arterial", placeholder: "Ejemplo: 120/80", requerido: true, ejemplos: ["110/70", "120/80", "130/85", "140/90", "150/95"] },
+      { tipo: "number", etiqueta: "Frecuencia cardíaca (lpm)", placeholder: "Latidos por minuto", requerido: true, rango: [55, 110], decimales: 0 },
+      { tipo: "multiselect", etiqueta: "Síntomas presentes", opciones: ["Dolor torácico", "Palpitaciones", "Falta de aire", "Mareos", "Hinchazón de piernas"] },
+      { tipo: "diagnostico", etiqueta: "Diagnóstico presuntivo", placeholder: "Diagnóstico" },
+      { tipo: "medicamento", etiqueta: "Medicamento indicado", placeholder: "Medicamento y dosis" },
+      { tipo: "textarea", etiqueta: "Observaciones", placeholder: "Notas del especialista", ejemplos: NOTAS_CLINICAS },
+    ],
+  },
+  {
+    nombre: "Control de diabetes",
+    especialidad: "Endocrinología",
+    descripcion: "Seguimiento metabólico del paciente con diabetes.",
+    campos: [
+      { tipo: "number", etiqueta: "Glucemia en ayunas (mg/dL)", placeholder: "Valor en mg/dL", requerido: true, rango: [80, 240], decimales: 0 },
+      { tipo: "number", etiqueta: "Hemoglobina glicosilada (%)", placeholder: "Porcentaje", rango: [5, 11], decimales: 1 },
+      { tipo: "select", etiqueta: "Tipo de diabetes", requerido: true, opciones: ["Tipo 1", "Tipo 2", "Gestacional"] },
+      { tipo: "select", etiqueta: "Adherencia al tratamiento", opciones: ["Buena", "Regular", "Deficiente"] },
+      { tipo: "multiselect", etiqueta: "Complicaciones", opciones: ["Neuropatía", "Retinopatía", "Nefropatía", "Pie diabético", "Ninguna"] },
+      { tipo: "medicamento", etiqueta: "Medicamento de control", placeholder: "Medicamento y dosis" },
+      { tipo: "textarea", etiqueta: "Plan de seguimiento", placeholder: "Indicaciones de control", ejemplos: ["Control en 3 meses con hemoglobina glicosilada.", "Reforzar plan de alimentación y actividad física.", "Ajuste de dosis y control de glucemia en 2 semanas.", "Referir a nutrición para plan alimentario."] },
+    ],
+  },
+  {
+    nombre: "Valoración dermatológica",
+    especialidad: "Dermatología",
+    descripcion: "Descripción de lesiones de la piel y tratamiento indicado.",
+    campos: [
+      { tipo: "text", etiqueta: "Zona afectada", placeholder: "Ejemplo: antebrazo derecho", requerido: true, ejemplos: ["Antebrazo derecho", "Espalda", "Cuero cabelludo", "Rostro", "Pies", "Manos"] },
+      { tipo: "select", etiqueta: "Tiempo de evolución", requerido: true, opciones: ["Menos de 1 semana", "1 a 4 semanas", "1 a 6 meses", "Más de 6 meses"] },
+      { tipo: "multiselect", etiqueta: "Tipo de lesión", opciones: ["Mancha", "Pápula", "Placa", "Vesícula", "Costra", "Descamación"] },
+      { tipo: "checkbox", etiqueta: "Presenta picazón", placeholder: "El paciente refiere picazón" },
+      { tipo: "diagnostico", etiqueta: "Diagnóstico", placeholder: "Diagnóstico dermatológico" },
+      { tipo: "medicamento", etiqueta: "Tratamiento tópico", placeholder: "Medicamento y modo de uso" },
+    ],
+  },
+  {
+    nombre: "Evaluación nutricional",
+    especialidad: "Nutrición",
+    descripcion: "Valoración antropométrica y hábitos de alimentación.",
+    campos: [
+      { tipo: "number", etiqueta: "Peso (kg)", placeholder: "Peso en kilogramos", requerido: true, rango: [45, 120], decimales: 1 },
+      { tipo: "number", etiqueta: "Talla (cm)", placeholder: "Talla en centímetros", requerido: true, rango: [145, 195], decimales: 0 },
+      { tipo: "number", etiqueta: "Circunferencia abdominal (cm)", placeholder: "Medida en centímetros", rango: [65, 120], decimales: 0 },
+      { tipo: "number", etiqueta: "Comidas al día", placeholder: "Cantidad de comidas", rango: [2, 6], decimales: 0 },
+      { tipo: "select", etiqueta: "Consumo de agua diario", opciones: ["Menos de 1 litro", "1 a 2 litros", "Más de 2 litros"] },
+      { tipo: "textarea", etiqueta: "Restricciones alimentarias", placeholder: "Alergias o intolerancias", ejemplos: ["Ninguna.", "Intolerancia a la lactosa.", "No consume carnes rojas.", "Evita gluten por indicación médica."] },
+      { tipo: "text", etiqueta: "Meta nutricional", placeholder: "Objetivo acordado", ejemplos: ["Reducir 5 kg en 3 meses", "Mantener peso actual", "Aumentar consumo de fibra", "Mejorar control de la glucosa"] },
+    ],
+  },
+  {
+    nombre: "Control prenatal",
+    especialidad: "Ginecología y obstetricia",
+    descripcion: "Seguimiento del embarazo en cada control prenatal.",
+    campos: [
+      { tipo: "number", etiqueta: "Semanas de gestación", placeholder: "Semanas cumplidas", requerido: true, rango: [6, 40], decimales: 0 },
+      { tipo: "date", etiqueta: "Fecha probable de parto", requerido: true },
+      { tipo: "number", etiqueta: "Altura uterina (cm)", placeholder: "Medida en centímetros", rango: [10, 38], decimales: 0 },
+      { tipo: "number", etiqueta: "Frecuencia cardíaca fetal (lpm)", placeholder: "Latidos por minuto", rango: [120, 160], decimales: 0 },
+      { tipo: "checkbox", etiqueta: "Movimientos fetales presentes", placeholder: "La paciente percibe movimientos" },
+      { tipo: "textarea", etiqueta: "Observaciones del control", placeholder: "Notas del control", ejemplos: ["Embarazo de curso normal, sin signos de alarma.", "Se indican vitaminas prenatales y control en 4 semanas.", "Paciente asintomática, se solicita ultrasonido de seguimiento.", "Se educa sobre signos de alarma en el embarazo."] },
+    ],
+  },
+  {
+    nombre: "Seguimiento de salud mental",
+    especialidad: "Psiquiatría",
+    descripcion: "Evolución del estado emocional y del tratamiento.",
+    campos: [
+      { tipo: "select", etiqueta: "Estado de ánimo", requerido: true, opciones: ["Estable", "Decaído", "Ansioso", "Irritable"] },
+      { tipo: "select", etiqueta: "Calidad del sueño", requerido: true, opciones: ["Buena", "Regular", "Mala", "Insomnio"] },
+      { tipo: "checkbox", etiqueta: "Ideas de autolesión", placeholder: "El paciente refiere ideas de autolesión" },
+      { tipo: "multiselect", etiqueta: "Síntomas actuales", opciones: ["Ansiedad", "Tristeza", "Fatiga", "Falta de concentración", "Irritabilidad"] },
+      { tipo: "medicamento", etiqueta: "Medicamento indicado", placeholder: "Medicamento y dosis" },
+      { tipo: "textarea", etiqueta: "Notas de la sesión", placeholder: "Resumen de la sesión", ejemplos: ["Paciente colaborador, refiere mejoría del ánimo.", "Se refuerzan técnicas de relajación y manejo del estrés.", "Se mantiene el tratamiento actual y se cita en 4 semanas.", "Se trabaja en la identificación de pensamientos negativos."] },
+    ],
+  },
+];
+
+// ── Funciones auxiliares ──
 
 function aleatorio(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -187,11 +394,40 @@ function numeroAleatorio(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function numeroEnRango(min, max, decimales) {
+  return Number((min + Math.random() * (max - min)).toFixed(decimales));
+}
+
 function fechaAleatoria(añoMin, añoMax) {
   const año = numeroAleatorio(añoMin, añoMax);
   const mes = numeroAleatorio(1, 12);
   const dia = numeroAleatorio(1, 28);
   return Timestamp.fromDate(new Date(`${año}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`));
+}
+
+// Fecha local a medianoche, desplazada N días respecto de hoy (negativo = pasado).
+// La aplicación guarda las fechas de las citas de la misma forma.
+function fechaLocalConOffset(dias) {
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias);
+}
+
+function formatoFechaIso(fecha) {
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  return `${fecha.getFullYear()}-${mes}-${dia}`;
+}
+
+// Fecha aleatoria entre el 1 de enero de añoMin y hoy (nunca en el futuro).
+function fechaPasadaAleatoria(añoMin) {
+  const diasDisponibles = Math.floor((Date.now() - new Date(añoMin, 0, 1).getTime()) / 86400000);
+  return Timestamp.fromDate(fechaLocalConOffset(-numeroAleatorio(0, diasDisponibles)));
+}
+
+function sumarMinutos(horaTexto, minutos) {
+  const [horas, mins] = horaTexto.split(":").map(Number);
+  const total = horas * 60 + mins + minutos;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function generarCedula() {
@@ -201,6 +437,31 @@ function generarCedula() {
 function generarTelefono() {
   return String(numeroAleatorio(60000000, 89999999));
 }
+
+// ── Escritura en Firestore ──
+// Todo registro se crea por aquí para que siempre lleve _seed: true y unseed.js
+// pueda eliminarlo.
+
+const contadores = {};
+
+function contar(coleccion) {
+  contadores[coleccion] = (contadores[coleccion] || 0) + 1;
+}
+
+async function crear(coleccion, datos) {
+  const ref = await addDoc(collection(db, coleccion), { ...datos, _seed: true });
+  contar(coleccion);
+  return ref;
+}
+
+// Igual que crear(), pero con un documento cuyo ID ya se conoce (las versiones
+// de un formulario necesitan referenciarse entre sí).
+async function crearConId(coleccion, ref, datos) {
+  await setDoc(ref, { ...datos, _seed: true });
+  contar(coleccion);
+}
+
+// ── Generadores: pacientes y consultas ──
 
 function generarPaciente(i) {
   const nombre = aleatorio(NOMBRES);
@@ -213,6 +474,7 @@ function generarPaciente(i) {
     nombre,
     apellidos: `${apellido1} ${apellido2}`,
     cedula: generarCedula(),
+    numero_expediente: `EXP-${numeroAleatorio(10000, 99999)}`,
     fechaNacimiento: fechaAleatoria(1955, 2005),
     sexo,
     telefono: generarTelefono(),
@@ -234,11 +496,12 @@ function generarPaciente(i) {
     creadoPor: DOCTOR_ID,
     medico_id: DOCTOR_ID,
     tags: aleatorioN(TAGS_OPCIONES, numeroAleatorio(1, 3)),
-    _seed: true,
   };
 }
 
-function generarConsulta(pacienteId, diagnosticosBase) {
+// "cita" es opcional: si se indica, la consulta queda vinculada a esa cita
+// completada (mismo ID y misma fecha), como ocurre al atender una cita real.
+function generarConsulta(pacienteId, diagnosticosBase, cita = null) {
   // 70% de probabilidad de usar un diagnóstico base del paciente
   const usarBase = diagnosticosBase.length > 0 && Math.random() < 0.7;
   const diagnostico = usarBase
@@ -248,8 +511,8 @@ function generarConsulta(pacienteId, diagnosticosBase) {
   return {
     pacienteId,
     doctorId: DOCTOR_ID,
-    citaId: "",
-    fecha: fechaAleatoria(2024, 2026),
+    citaId: cita ? cita.id : "",
+    fecha: cita ? Timestamp.fromDate(cita.fechaCita) : fechaPasadaAleatoria(2024),
     fechaCreacion: Timestamp.now(),
     motivoConsulta: aleatorio(MOTIVOS_CONSULTA),
     examenFisico: aleatorio(EXAMENES_FISICOS),
@@ -258,28 +521,411 @@ function generarConsulta(pacienteId, diagnosticosBase) {
     indicaciones: aleatorio(INDICACIONES),
     notasClinicas: aleatorio(NOTAS_CLINICAS),
     resumenIA: "",
-    _seed: true,
   };
 }
 
+// ── Generadores: citas ──
+
+const HORAS_CITA = (() => {
+  const horas = [];
+  for (let minutos = 8 * 60; minutos < 17 * 60; minutos += 15) {
+    horas.push(`${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`);
+  }
+  return horas;
+})();
+
+// La aplicación no permite dos citas activas en la misma fecha y hora de inicio,
+// así que el seed tampoco las genera.
+const horariosOcupados = new Set();
+
+function reservarHorario() {
+  for (let intento = 0; intento < 50; intento++) {
+    const dias = numeroAleatorio(-DIAS_CITAS_PASADAS, DIAS_CITAS_FUTURAS);
+    const fechaCita = fechaLocalConOffset(dias);
+    const hora = aleatorio(HORAS_CITA);
+    const clave = `${formatoFechaIso(fechaCita)}|${hora}`;
+    if (!horariosOcupados.has(clave)) {
+      horariosOcupados.add(clave);
+      return { dias, fechaCita, hora };
+    }
+  }
+  return null;
+}
+
+// Las citas pasadas casi siempre se completaron; las futuras están programadas o confirmadas.
+function estadoCita(dias) {
+  const azar = Math.random();
+  if (dias < 0) return azar < 0.8 ? "completada" : "cancelada";
+  if (azar < 0.55) return "programada";
+  return azar < 0.9 ? "confirmada" : "cancelada";
+}
+
+function generarCita(paciente, pacienteId) {
+  const horario = reservarHorario();
+  if (!horario) return null;
+  const estado = estadoCita(horario.dias);
+
+  return {
+    estado,
+    fechaCita: horario.fechaCita,
+    datos: {
+      pacienteId,
+      paciente_nombre: `${paciente.nombre} ${paciente.apellidos}`,
+      paciente_correo: paciente.email,
+      tipo_consulta: aleatorio(TIPOS_CONSULTA_CITA),
+      fecha: Timestamp.fromDate(horario.fechaCita),
+      hora_inicio: horario.hora,
+      hora_fin: sumarMinutos(horario.hora, aleatorio([30, 45])),
+      estado,
+      monto: aleatorio(MONTOS_CITA),
+      notas: aleatorio(NOTAS_CITA),
+      medico_id: DOCTOR_ID,
+      creado_en: Timestamp.now(),
+      actualizado_en: Timestamp.now(),
+    },
+  };
+}
+
+// ── Generadores: formularios ──
+
+function crearCampo(definicion, orden) {
+  return {
+    id: randomUUID(),
+    tipo: definicion.tipo,
+    etiqueta: definicion.etiqueta,
+    placeholder: definicion.placeholder || "",
+    requerido: Boolean(definicion.requerido),
+    opciones: definicion.opciones || [],
+    orden,
+  };
+}
+
+// Valor de ejemplo con el mismo tipo que guarda la pantalla para ese campo.
+function valorParaCampo(campo, definicion) {
+  switch (campo.tipo) {
+    case "number":
+      return definicion.rango
+        ? numeroEnRango(definicion.rango[0], definicion.rango[1], definicion.decimales || 0)
+        : numeroAleatorio(1, 100);
+    case "date":
+      return formatoFechaIso(fechaLocalConOffset(numeroAleatorio(-60, 90)));
+    case "select":
+      return aleatorio(campo.opciones);
+    case "multiselect":
+      return aleatorioN(campo.opciones, numeroAleatorio(1, Math.min(2, campo.opciones.length)));
+    case "checkbox":
+      return Math.random() < 0.5;
+    case "diagnostico":
+      return aleatorio(DIAGNOSTICOS_OPCIONES);
+    case "medicamento":
+      return aleatorio(MEDICAMENTOS_OPCIONES);
+    default:
+      return definicion.ejemplos ? aleatorio(definicion.ejemplos) : aleatorio(NOTAS_CLINICAS);
+  }
+}
+
+// Una respuesta completa llena todos los campos; un borrador llena los
+// obligatorios y solo algunos de los opcionales.
+function generarRespuestas(campos, definiciones, completa) {
+  const respuestas = {};
+  campos.forEach((campo, i) => {
+    if (!completa && !campo.requerido && Math.random() < 0.5) return;
+    respuestas[campo.id] = valorParaCampo(campo, definiciones[i]);
+  });
+  return respuestas;
+}
+
+// Crea los formularios del catálogo. Los últimos quedan archivados, los
+// anteriores a esos quedan como plantilla y el resto como formularios activos.
+// Devuelve la versión vigente de cada uno; "utilizable" indica si se puede
+// responder o asignar a una cita (activo y no plantilla).
+async function crearFormularios() {
+  const cantidad = Math.min(CANTIDAD_FORMULARIOS, CATALOGO_FORMULARIOS.length);
+  const elegidos = aleatorioN(CATALOGO_FORMULARIOS, cantidad);
+  const formularios = [];
+
+  for (let indice = 0; indice < elegidos.length; indice++) {
+    const modelo = elegidos[indice];
+    const archivado = indice >= cantidad - FORMULARIOS_ARCHIVADOS;
+    const plantilla = !archivado && indice >= cantidad - FORMULARIOS_ARCHIVADOS - FORMULARIOS_COMO_PLANTILLA;
+    const estadoFormulario = plantilla ? "plantilla" : "activo";
+
+    // Todas las versiones comparten un baseFormularioId (el ID de la primera);
+    // cada versión nueva agrega campos a la anterior.
+    const refs = Array.from({ length: VERSIONES_POR_FORMULARIO }, () => doc(collection(db, "formularios_clinicos")));
+    let vigente = null;
+
+    for (let version = 1; version <= VERSIONES_POR_FORMULARIO; version++) {
+      const definiciones = modelo.campos.slice(0, Math.max(3, modelo.campos.length - (VERSIONES_POR_FORMULARIO - version)));
+      const campos = definiciones.map((definicion, i) => crearCampo(definicion, i + 1));
+      const diasAtras = (VERSIONES_POR_FORMULARIO - version) * numeroAleatorio(20, 40) + numeroAleatorio(1, 10);
+      const fecha = Timestamp.fromDate(fechaLocalConOffset(-diasAtras));
+
+      const datos = {
+        nombre: modelo.nombre,
+        descripcion: modelo.descripcion,
+        especialidad: modelo.especialidad,
+        campos,
+        version,
+        activo: !archivado,
+        estadoFormulario,
+        creado_por: DOCTOR_ID,
+        creado_en: fecha,
+        modificado_en: fecha,
+      };
+
+      if (VERSIONES_POR_FORMULARIO > 1) {
+        datos.baseFormularioId = refs[0].id;
+        datos.isCurrentVersion = version === VERSIONES_POR_FORMULARIO;
+        if (version > 1) datos.previousVersionId = refs[version - 2].id;
+      }
+
+      await crearConId("formularios_clinicos", refs[version - 1], datos);
+      vigente = { id: refs[version - 1].id, campos, definiciones };
+    }
+
+    formularios.push({
+      id: vigente.id,
+      nombre: modelo.nombre,
+      especialidad: modelo.especialidad,
+      version: VERSIONES_POR_FORMULARIO,
+      campos: vigente.campos,
+      definiciones: vigente.definiciones,
+      utilizable: !archivado && !plantilla,
+    });
+  }
+
+  return formularios;
+}
+
+// Asigna un formulario a una cita (colección formularios_citas).
+async function asignarFormularioACita(cita, pacienteId, formularios) {
+  const formulario = aleatorio(formularios);
+  let estado = "assigned";
+  if (cita.estado === "completada") estado = Math.random() < 0.7 ? "completed" : "draft";
+  else if (cita.estado !== "cancelada" && Math.random() < 0.2) estado = "draft";
+
+  await crear("formularios_citas", {
+    citaId: cita.id,
+    formularioId: formulario.id,
+    formularioNombre: formulario.nombre,
+    formularioEspecialidad: formulario.especialidad,
+    formularioVersion: formulario.version,
+    pacienteId,
+    doctorId: DOCTOR_ID,
+    estado,
+    respuestas: estado === "assigned" ? {} : generarRespuestas(formulario.campos, formulario.definiciones, estado === "completed"),
+    creado_en: Timestamp.now(),
+    modificado_en: Timestamp.now(),
+  });
+}
+
+// Respuestas de formularios clínicos de un paciente (colección formularios_paciente).
+// Cada paciente responde formularios distintos entre sí.
+async function crearRespuestasPaciente(pacienteId, formularios) {
+  const elegidos = aleatorioN(formularios, Math.min(FORMULARIOS_RESPONDIDOS_POR_PACIENTE, formularios.length));
+
+  for (const formulario of elegidos) {
+    const estado = Math.random() < 0.75 ? "completed" : "draft";
+    const fecha = Timestamp.fromDate(fechaLocalConOffset(-numeroAleatorio(1, 150)));
+    await crear("formularios_paciente", {
+      pacienteId,
+      formularioId: formulario.id,
+      formularioNombre: formulario.nombre,
+      formularioEspecialidad: formulario.especialidad,
+      formularioVersion: formulario.version,
+      doctorId: DOCTOR_ID,
+      estado,
+      respuestas: generarRespuestas(formulario.campos, formulario.definiciones, estado === "completed"),
+      creado_en: fecha,
+      modificado_en: fecha,
+    });
+  }
+
+  return elegidos.length;
+}
+
+// ── Generadores: documentos y expedientes ──
+
+function generarDocumento(pacienteId) {
+  return {
+    pacienteId,
+    doctorId: DOCTOR_ID,
+    nombre: `${aleatorio(NOMBRES_DOCUMENTOS)}.pdf`,
+    tipo: "pdf",
+    url: URL_DOCUMENTO_EJEMPLO,
+    tamaño: TAMAÑO_DOCUMENTO_EJEMPLO,
+    creado_en: Timestamp.fromDate(fechaLocalConOffset(-numeroAleatorio(1, 200))),
+  };
+}
+
+function generarSignosVitales() {
+  const peso = numeroAleatorio(45, 110);
+  const talla = numeroAleatorio(150, 190);
+  return {
+    presion_arterial: `${numeroAleatorio(100, 150)}/${numeroAleatorio(60, 95)}`,
+    frecuencia_cardiaca: numeroAleatorio(55, 100),
+    temperatura: numeroEnRango(36, 37.5, 1),
+    peso,
+    talla,
+    imc: Number((peso / ((talla / 100) ** 2)).toFixed(1)),
+    saturacion_oxigeno: numeroAleatorio(94, 100),
+    frecuencia_respiratoria: numeroAleatorio(12, 22),
+  };
+}
+
+// "cita" es opcional: si se indica, el expediente toma su fecha y su ID.
+function generarExpediente(pacienteId, diagnosticosBase, cita = null) {
+  const principal = diagnosticosBase.length > 0 && Math.random() < 0.7
+    ? aleatorio(diagnosticosBase)
+    : aleatorio(DIAGNOSTICOS_OPCIONES);
+  const fecha = cita ? Timestamp.fromDate(cita.fechaCita) : fechaPasadaAleatoria(2024);
+
+  return {
+    paciente_id: pacienteId,
+    medico_id: DOCTOR_ID,
+    cita_id: cita ? cita.id : "",
+    fecha_consulta: fecha,
+    motivo_consulta: aleatorio(MOTIVOS_CONSULTA),
+    signos_vitales: generarSignosVitales(),
+    anamnesis: aleatorio(NOTAS_CLINICAS),
+    exploracion_fisica: aleatorio(EXAMENES_FISICOS),
+    diagnostico_principal: principal,
+    diagnosticos_secundarios: aleatorioN(DIAGNOSTICOS_OPCIONES.filter((d) => d !== principal), numeroAleatorio(0, 1)),
+    plan_tratamiento: aleatorio(TRATAMIENTOS),
+    medicamentos_recetados: aleatorioN(MEDICAMENTOS_OPCIONES, numeroAleatorio(0, 2)).map((nombre) => ({
+      nombre,
+      dosis: aleatorio(DOSIS_MEDICAMENTO),
+      frecuencia: aleatorio(FRECUENCIAS_MEDICAMENTO),
+      duracion: aleatorio(DURACIONES_MEDICAMENTO),
+    })),
+    indicaciones_paciente: aleatorio(INDICACIONES),
+    observaciones: aleatorio(NOTAS_CLINICAS),
+    resumen_ia: "",
+    creado_en: fecha,
+    actualizado_en: fecha,
+  };
+}
+
+// ── Validación de la configuración ──
+
+function validarConfiguracion() {
+  const enteros = {
+    CANTIDAD_PACIENTES,
+    CONSULTAS_POR_PACIENTE,
+    EXPEDIENTES_POR_PACIENTE,
+    DOCUMENTOS_POR_PACIENTE,
+    CITAS_POR_PACIENTE,
+    DIAS_CITAS_PASADAS,
+    DIAS_CITAS_FUTURAS,
+    CANTIDAD_FORMULARIOS,
+    FORMULARIOS_COMO_PLANTILLA,
+    FORMULARIOS_ARCHIVADOS,
+    FORMULARIOS_RESPONDIDOS_POR_PACIENTE,
+  };
+  for (const [nombre, valor] of Object.entries(enteros)) {
+    if (!Number.isInteger(valor) || valor < 0) {
+      throw new Error(`${nombre} debe ser un número entero mayor o igual a 0 (valor actual: ${valor}).`);
+    }
+  }
+  if (!Number.isInteger(VERSIONES_POR_FORMULARIO) || VERSIONES_POR_FORMULARIO < 1) {
+    throw new Error(`VERSIONES_POR_FORMULARIO debe ser un número entero mayor o igual a 1 (valor actual: ${VERSIONES_POR_FORMULARIO}).`);
+  }
+  if (!Number.isFinite(PORCENTAJE_CITAS_CON_FORMULARIO) || PORCENTAJE_CITAS_CON_FORMULARIO < 0 || PORCENTAJE_CITAS_CON_FORMULARIO > 100) {
+    throw new Error(`PORCENTAJE_CITAS_CON_FORMULARIO debe estar entre 0 y 100 (valor actual: ${PORCENTAJE_CITAS_CON_FORMULARIO}).`);
+  }
+  if (FORMULARIOS_COMO_PLANTILLA + FORMULARIOS_ARCHIVADOS > Math.min(CANTIDAD_FORMULARIOS, CATALOGO_FORMULARIOS.length)) {
+    throw new Error("FORMULARIOS_COMO_PLANTILLA + FORMULARIOS_ARCHIVADOS no pueden superar la cantidad de formularios que se van a crear.");
+  }
+  if (!DOCTOR_ID) {
+    throw new Error("Falta DOCTOR_ID: indicá el UID del médico en el archivo o con la variable SEED_DOCTOR_ID.");
+  }
+  if (CANTIDAD_FORMULARIOS > CATALOGO_FORMULARIOS.length) {
+    console.log(`Aviso: el catálogo tiene ${CATALOGO_FORMULARIOS.length} formularios; se crearán solo esos.\n`);
+  }
+}
+
 async function seed() {
-  console.log(`Creando ${CANTIDAD_PACIENTES} pacientes con ${CONSULTAS_POR_PACIENTE} consultas cada uno...\n`);
+  validarConfiguracion();
+
+  console.log(`Médico (DOCTOR_ID): ${DOCTOR_ID}`);
+  console.log(`Creando ${CANTIDAD_PACIENTES} pacientes: ${CITAS_POR_PACIENTE} citas, ${CONSULTAS_POR_PACIENTE} consultas, ${EXPEDIENTES_POR_PACIENTE} expedientes y ${DOCUMENTOS_POR_PACIENTE} documentos cada uno...\n`);
+
+  // Los formularios se crean primero porque las citas y los pacientes los referencian.
+  const formularios = await crearFormularios();
+  const formulariosUtilizables = formularios.filter((f) => f.utilizable);
+  if (formularios.length > 0) {
+    console.log(`✓ ${formularios.length} formularios creados (${formulariosUtilizables.length} activos, ${FORMULARIOS_COMO_PLANTILLA} plantilla, ${FORMULARIOS_ARCHIVADOS} archivados)\n`);
+  }
+
+  let citasOmitidas = 0;
 
   for (let i = 0; i < CANTIDAD_PACIENTES; i++) {
     const pacienteData = generarPaciente(i);
-    const pacienteRef = await addDoc(collection(db, "pacientes"), pacienteData);
+    const pacienteRef = await crear("pacientes", pacienteData);
     console.log(`✓ Paciente ${i + 1}/${CANTIDAD_PACIENTES}: ${pacienteData.nombre} ${pacienteData.apellidos}`);
 
     // Cada paciente tiene 1-3 condiciones crónicas que se repiten en sus consultas
     const diagnosticosBase = aleatorioN(DIAGNOSTICOS_OPCIONES, numeroAleatorio(1, 3));
 
-    for (let j = 0; j < CONSULTAS_POR_PACIENTE; j++) {
-      await addDoc(collection(db, "consultas"), generarConsulta(pacienteRef.id, diagnosticosBase));
+    // Citas
+    const citas = [];
+    for (let j = 0; j < CITAS_POR_PACIENTE; j++) {
+      const cita = generarCita(pacienteData, pacienteRef.id);
+      if (cita) citas.push(cita);
+      else citasOmitidas++;
     }
-    console.log(`  ✓ ${CONSULTAS_POR_PACIENTE} consultas creadas`);
+    await Promise.all(citas.map(async (cita) => {
+      const ref = await crear("citas", cita.datos);
+      cita.id = ref.id;
+    }));
+
+    // Formularios asignados a algunas de esas citas
+    if (formulariosUtilizables.length > 0) {
+      for (const cita of citas) {
+        if (Math.random() * 100 < PORCENTAJE_CITAS_CON_FORMULARIO) {
+          await asignarFormularioACita(cita, pacienteRef.id, formulariosUtilizables);
+        }
+      }
+    }
+
+    // Las consultas y los expedientes se vinculan primero a las citas completadas
+    // (de la más reciente a la más antigua); el resto lleva una fecha pasada al azar.
+    const completadas = citas
+      .filter((cita) => cita.estado === "completada")
+      .sort((a, b) => b.fechaCita - a.fechaCita);
+
+    await Promise.all(
+      Array.from({ length: CONSULTAS_POR_PACIENTE }, (_, j) =>
+        crear("consultas", generarConsulta(pacienteRef.id, diagnosticosBase, completadas[j] || null))
+      )
+    );
+
+    await Promise.all(
+      Array.from({ length: EXPEDIENTES_POR_PACIENTE }, (_, j) =>
+        crear("expedientes", generarExpediente(pacienteRef.id, diagnosticosBase, completadas[j] || null))
+      )
+    );
+
+    // Respuestas de formularios y documentos adjuntos
+    const respondidos = formulariosUtilizables.length > 0
+      ? await crearRespuestasPaciente(pacienteRef.id, formulariosUtilizables)
+      : 0;
+
+    await Promise.all(
+      Array.from({ length: DOCUMENTOS_POR_PACIENTE }, () => crear("documentos", generarDocumento(pacienteRef.id)))
+    );
+
+    console.log(`  ✓ ${citas.length} citas · ${CONSULTAS_POR_PACIENTE} consultas · ${EXPEDIENTES_POR_PACIENTE} expedientes · ${respondidos} formularios respondidos · ${DOCUMENTOS_POR_PACIENTE} documentos`);
   }
 
-  console.log(`\n✅ Seed completado: ${CANTIDAD_PACIENTES} pacientes, ${CANTIDAD_PACIENTES * CONSULTAS_POR_PACIENTE} consultas`);
+  console.log("\n✅ Seed completado:");
+  for (const [coleccion, total] of Object.entries(contadores)) {
+    console.log(`   ${coleccion}: ${total}`);
+  }
+  if (citasOmitidas > 0) {
+    console.log(`\nAviso: ${citasOmitidas} citas no se crearon porque no hubo horarios libres en el rango de fechas. Ampliá DIAS_CITAS_PASADAS o DIAS_CITAS_FUTURAS.`);
+  }
   process.exit(0);
 }
 
