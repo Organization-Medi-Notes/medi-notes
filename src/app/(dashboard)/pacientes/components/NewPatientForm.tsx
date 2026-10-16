@@ -39,7 +39,12 @@ const patientSchema = z.object({
     z.string().min(1, "La fecha de nacimiento es requerida").refine((val) => !isNaN(new Date(val).getTime()), {
       message: "Fecha inválida",
     }).transform((val) => new Date(val)),
-  ]),
+  ]).refine(
+    // Una fecha de nacimiento no puede ser invalida ni estar en el futuro.
+    // z.instanceof(Date) acepta un "Invalid Date", por eso se revisa aqui.
+    (fecha) => !isNaN(fecha.getTime()) && fecha <= new Date(),
+    { message: "Fecha inválida" }
+  ),
   cedula: z.string().min(1, "La cédula es requerida"),
   sexo: z.enum(["masculino", "femenino", "otro"]),
   telefono: z.string().optional(),
@@ -64,7 +69,8 @@ const patientSchema = z.object({
 const defaultPatientValues = {
   nombre: "",
   apellidos: "",
-  fechaNacimiento: new Date(),
+  // Sin valor: el formulario de alta no debe sugerir una fecha de nacimiento.
+  fechaNacimiento: undefined,
   cedula: "",
   sexo: "masculino",
   telefono: "",
@@ -121,7 +127,7 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
           ? patientToEdit.fechaNacimiento.toDate()
           : patientToEdit.fechaNacimiento instanceof Date
             ? patientToEdit.fechaNacimiento
-            : new Date(defaultPatientValues.fechaNacimiento), // Use default if invalid
+            : undefined, // Sin fecha valida: se deja vacio para que el usuario la corrija
         alergias: (patientToEdit.alergias || []).map((allergy) => ({ value: allergy })),
         medicamentosActuales: (patientToEdit.medicamentosActuales || []).map((med) => ({ value: med })),
         // Keep read-only fields
@@ -234,8 +240,12 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
                   <Input
                     type="date"
                     {...field}
-                    // Ensure the date input displays correctly
-                    value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''}
+                    // Ensure the date input displays correctly.
+                    // Se valida getTime() porque un "Invalid Date" tambien es instancia de Date
+                    // y toISOString() lanzaria una excepcion.
+                    value={field.value instanceof Date && !isNaN(field.value.getTime())
+                      ? field.value.toISOString().split('T')[0]
+                      : ''}
                     onChange={(e) => {
                       const dateString = e.target.value;
                       if (dateString) {
