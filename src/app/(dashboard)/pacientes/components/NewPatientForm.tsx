@@ -99,6 +99,16 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
     reValidateMode: "onChange",
   });
 
+  // El boton de guardar se habilita cuando el resto de campos obligatorios estan
+  // completos, aunque falte la fecha de nacimiento. De esa forma, al pulsar
+  // Guardar el formulario muestra "La fecha de nacimiento es requerida" en vez
+  // de dejar el boton inerte sin explicarle al usuario que le falta.
+  // Se reutiliza el mismo esquema (sin el campo de fecha) para no duplicar reglas.
+  const valoresActuales = form.watch();
+  const camposSinFechaValidos = patientSchema
+    .omit({ fechaNacimiento: true })
+    .safeParse(valoresActuales).success;
+
   const {
     fields: alergiasFields,
     append: appendAlergia,
@@ -514,7 +524,7 @@ export function NewPatientForm({ onFinished, patientToEdit }) {
         />
 
         <div className="flex justify-end pt-4">
-          <Button type="submit" disabled={form.formState.isSubmitting || !form.formState.isValid}>
+          <Button type="submit" disabled={form.formState.isSubmitting || !camposSinFechaValidos}>
             {form.formState.isSubmitting ? "Guardando..." : (patientToEdit ? "Actualizar Paciente" : "Guardar Paciente")}
           </Button>
         </div>
