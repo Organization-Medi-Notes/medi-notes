@@ -1,16 +1,18 @@
 /**
  * UNSEED - Limpieza de datos de prueba de Medi Notes
- * 
+ *
  * Elimina únicamente los registros creados por seed.js.
  * Busca y borra todos los documentos que tengan _seed: true
- * en las colecciones pacientes y consultas.
+ * en las colecciones que puebla seed.js (pacientes, consultas, citas,
+ * formularios_clinicos, formularios_paciente, formularios_citas,
+ * documentos y expedientes).
  * No toca ningún dato real que no haya sido creado por el seed.
- * 
+ *
  * REQUISITOS:
  * - Haber corrido seed.js previamente
  * - Tener un archivo .env en la raíz del proyecto con las variables de Firebase
  * - Tener instalado dotenv: npm install dotenv
- * 
+ *
  * CÓMO CORRER:
  * node unseed.js
  */
@@ -32,20 +34,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Colecciones que puebla seed.js. Si seed.js empieza a crear datos en otra
+// colección, agregala aquí para que también se pueda limpiar.
+const COLECCIONES = [
+  { nombre: "pacientes", etiqueta: "Pacientes" },
+  { nombre: "consultas", etiqueta: "Consultas" },
+  { nombre: "citas", etiqueta: "Citas" },
+  { nombre: "formularios_clinicos", etiqueta: "Formularios clínicos" },
+  { nombre: "formularios_paciente", etiqueta: "Respuestas de formularios de pacientes" },
+  { nombre: "formularios_citas", etiqueta: "Formularios asignados a citas" },
+  { nombre: "documentos", etiqueta: "Documentos" },
+  { nombre: "expedientes", etiqueta: "Expedientes" },
+];
+
 async function unseed() {
   console.log("Eliminando datos de seed...");
 
-  const pacientesSnap = await getDocs(query(collection(db, "pacientes"), where("_seed", "==", true)));
-  for (const documento of pacientesSnap.docs) {
-    await deleteDoc(doc(db, "pacientes", documento.id));
+  for (const { nombre, etiqueta } of COLECCIONES) {
+    const snap = await getDocs(query(collection(db, nombre), where("_seed", "==", true)));
+    for (const documento of snap.docs) {
+      await deleteDoc(doc(db, nombre, documento.id));
+    }
+    console.log(`✓ ${etiqueta} eliminados: ${snap.size}`);
   }
-  console.log(`✓ Pacientes eliminados: ${pacientesSnap.size}`);
-
-  const consultasSnap = await getDocs(query(collection(db, "consultas"), where("_seed", "==", true)));
-  for (const documento of consultasSnap.docs) {
-    await deleteDoc(doc(db, "consultas", documento.id));
-  }
-  console.log(`✓ Consultas eliminadas: ${consultasSnap.size}`);
 
   console.log("\n✅ Limpieza completada");
   process.exit(0);

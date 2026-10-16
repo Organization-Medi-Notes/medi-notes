@@ -44,3 +44,13 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# Documentos de la carpeta docs
+docs/*.docx
+docs/*.xlsx
+docs/*.tsv
+docs/blueprint.md
+.png
+.jpg
+docs/*.jpg
+docs/*.pdf
