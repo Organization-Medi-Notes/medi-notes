@@ -162,6 +162,23 @@ export const appointmentService = {
 };
 
 /**
+ * Servicio para las consultas registradas en el perfil de cada paciente.
+ * Es la fuente real del historial clínico (la colección "consultas").
+ */
+export const consultaService = {
+  db: db,
+
+  async getByPatient(pacienteId: string) {
+    const q = query(
+      collection(this.db, "consultas"),
+      where("pacienteId", "==", pacienteId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+  }
+};
+
+/**
  * Servicio para expedientes clínicos.
  */
 export const medicalRecordService = {

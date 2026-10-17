@@ -84,8 +84,38 @@ const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
       try {
         const data = await settingsService.getProfile();
 
+        // Datos con los que la persona se registró (colección "usuarios"):
+        // son la base del perfil cuando todavía no hay configuración guardada.
+        let registeredUser: any = null;
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          try {
+            const registeredSnap = await getDoc(doc(db, "usuarios", currentUser.uid));
+            registeredUser = registeredSnap.exists() ? registeredSnap.data() : null;
+          } catch (error) {
+            console.error("Error cargando datos de registro del usuario:", error);
+          }
+        }
+
+        const registeredProfile = {
+          nombre: String(registeredUser?.nombre ?? ""),
+          apellidos: String(registeredUser?.apellidos ?? ""),
+          especialidad: "",
+          cedula_profesional: "",
+          email: currentUser?.email ?? String(registeredUser?.email ?? ""),
+          telefono: String(registeredUser?.telefono ?? ""),
+        };
+
 if (data) {
-  setProfile(data);
+  const savedProfile = data as any;
+  setProfile({
+    ...registeredProfile,
+    ...savedProfile,
+    nombre: String(savedProfile.nombre ?? "").trim() ? savedProfile.nombre : registeredProfile.nombre,
+    apellidos: String(savedProfile.apellidos ?? "").trim() ? savedProfile.apellidos : registeredProfile.apellidos,
+    email: savedProfile.email || registeredProfile.email,
+    telefono: savedProfile.telefono ?? registeredProfile.telefono,
+  });
 
   const dataAny = data as any;
 
@@ -103,14 +133,7 @@ if (data) {
 
 }
  else {
-  setProfile({
-    nombre: "Natalia",
-    apellidos: "Solano",
-    especialidad: "Pediatra",
-    cedula_profesional: "MED-88291-CR",
-    email: auth.currentUser?.email ?? "",
-    telefono: "",
-  });
+  setProfile(registeredProfile);
 }
       } catch (error) {
         console.error(error);

@@ -30,7 +30,7 @@ import { DashboardSectionHeader } from "@/components/dashboard/DashboardSectionH
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { appointmentService, medicalRecordService, patientService } from "@/lib/firebase/db-service";
+import { appointmentService, consultaService, medicalRecordService, patientService } from "@/lib/firebase/db-service";
 import { respuestaFormularioService } from "@/lib/firebase/respuestaFormularioService";
 import { formularioService } from "@/lib/firebase/formularioService";
 import { FormularioClinico } from "@/lib/types/formulario.types";
@@ -231,7 +231,34 @@ function getMedicalRecordPatientId(record: any) {
 }
 
 function getMedicalRecordSummaryDate(record: any): Date | null {
-  return getDateFromFirestore(record?.fecha_consulta ?? record?.fechaConsulta ?? record?.actualizado_en ?? record?.creado_en);
+  return getDateFromFirestore(record?.fecha ?? record?.fecha_consulta ?? record?.fechaConsulta ?? record?.actualizado_en ?? record?.creado_en);
+}
+
+function getPatientFullName(patient: any) {
+  const fullName = `${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim();
+  return fullName || getPatientName(patient);
+}
+
+function getPatientAge(patient: any): string {
+  const birth = getDateFromFirestore(patient?.fechaNacimiento ?? patient?.fecha_nacimiento);
+  if (!birth) return patient?.edad ? `${patient.edad} años` : "—";
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const hadBirthday =
+    today.getMonth() > birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
+  if (!hadBirthday) age -= 1;
+  return age >= 0 ? `${age} años` : "—";
+}
+
+function hasClinicalBackground(patient: any): boolean {
+  if (!patient) return false;
+  return Boolean(
+    String(patient.antecedentesPersonales ?? patient.antecedentes_personales ?? "").trim() ||
+    String(patient.antecedentesFamiliares ?? patient.antecedentes_familiares ?? "").trim() ||
+    toTextArray(patient.alergias).length > 0 ||
+    toTextArray(patient.medicamentosActuales ?? patient.medicamentos_actuales).length > 0
+  );
 }
 
 function formatDateTime(value: any) {
@@ -366,6 +393,8 @@ export default function DashboardPage() {
   const [selectedSupportPatientId, setSelectedSupportPatientId] = useState("");
   const [supportDocError, setSupportDocError] = useState("");
   const [generatingSupportDoc, setGeneratingSupportDoc] = useState(false);
+  const [supportConsultas, setSupportConsultas] = useState<any[]>([]);
+  const [loadingSupportConsultas, setLoadingSupportConsultas] = useState(false);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -386,6 +415,35 @@ export default function DashboardPage() {
     }
     loadDashboardData();
   }, []);
+
+  // Las consultas del paciente elegido se leen de la colección "consultas",
+  // que es donde la aplicación guarda el historial clínico real.
+  useEffect(() => {
+    if (!selectedSupportPatientId) {
+      setSupportConsultas([]);
+      setLoadingSupportConsultas(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSupportConsultas(true);
+    consultaService
+      .getByPatient(selectedSupportPatientId)
+      .then((rows) => {
+        if (!cancelled) setSupportConsultas(rows);
+      })
+      .catch((error) => {
+        console.error("Error cargando consultas del paciente:", error);
+        if (!cancelled) setSupportConsultas([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSupportConsultas(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSupportPatientId]);
 
   const periodTitle = getPeriodTitle(period, referenceDate, allAppointments);
   const periodCaption = getPeriodCaption(period);
@@ -429,36 +487,41 @@ export default function DashboardPage() {
 
   const hasOperationalData = operationalSummary.totalCitas > 0 || operationalSummary.expedientesPeriodo > 0;
 
-  const recordPatientIds = Array.from(
-    new Set(medicalRecords.map((record) => getMedicalRecordPatientId(record)).filter(Boolean))
-  );
-
-  const patientsById = new Map(
-    patients.map((patient) => [String(patient?.id ?? "").trim(), patient])
-  );
-
-  const patientsWithRecords = recordPatientIds
-    .map((patientId) => {
-      const patient = patientsById.get(patientId);
-      return {
-        id: patientId,
-        patient,
-        name: patient ? getPatientName(patient) : `Paciente ${patientId}`,
-      };
-    })
+  // Pacientes activos del médico: son los que tienen datos reales en la aplicación.
+  const supportPatients = patients
+    .filter((patient) => patient?.activo !== false)
+    .map((patient) => ({
+      id: String(patient?.id ?? "").trim(),
+      patient,
+      name: getPatientFullName(patient),
+    }))
+    .filter((item) => item.id)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const selectedSupportPatient = patientsWithRecords.find((item) => item.id === selectedSupportPatientId) ?? null;
+  const selectedSupportPatient = supportPatients.find((item) => item.id === selectedSupportPatientId) ?? null;
 
-  const selectedPatientRecords = medicalRecords
-    .filter((record) => getMedicalRecordPatientId(record) === selectedSupportPatientId)
-    .sort((a, b) => {
-      const first = getMedicalRecordSummaryDate(a)?.getTime() ?? 0;
-      const second = getMedicalRecordSummaryDate(b)?.getTime() ?? 0;
-      return second - first;
-    });
+  const selectedPatientRecords = [...supportConsultas].sort((a, b) => {
+    const first = getMedicalRecordSummaryDate(a)?.getTime() ?? 0;
+    const second = getMedicalRecordSummaryDate(b)?.getTime() ?? 0;
+    return second - first;
+  });
 
-  const canGenerateSupportDoc = Boolean(supportSubtype && selectedSupportPatientId && patientsWithRecords.length > 0);
+  // Mensaje que explica por qué no se puede generar el documento (null = hay datos).
+  let supportDataIssue: string | null = null;
+  if (supportSubtype && selectedSupportPatient && !loadingSupportConsultas) {
+    if (supportSubtype === "hoja_evolucion" && selectedPatientRecords.length === 0) {
+      supportDataIssue = "Este paciente aún no tiene consultas registradas, por lo que no hay datos para generar la hoja de evolución.";
+    } else if (supportSubtype === "historia_resumida" && !hasClinicalBackground(selectedSupportPatient.patient)) {
+      supportDataIssue = "Este paciente aún no tiene antecedentes, alergias ni medicamentos registrados, por lo que no hay datos para generar la historia clínica resumida.";
+    }
+  }
+
+  const canGenerateSupportDoc = Boolean(
+    supportSubtype &&
+    selectedSupportPatient &&
+    !loadingSupportConsultas &&
+    !supportDataIssue
+  );
 
   const periodRevenue = periodAppointments.reduce((acc, apt) => {
     const status = getAppointmentStatus(apt);
@@ -591,6 +654,11 @@ export default function DashboardPage() {
       return;
     }
 
+    if (supportDataIssue) {
+      setSupportDocError(supportDataIssue);
+      return;
+    }
+
     setSupportDocError("");
     setGeneratingSupportDoc(true);
 
@@ -656,17 +724,17 @@ export default function DashboardPage() {
 
       if (supportSubtype === "hoja_evolucion") {
         const rows = selectedPatientRecords.map((record: any) => {
-          const fecha = formatDateTime(record?.fecha_consulta ?? record?.fechaConsulta ?? record?.creado_en);
-          const motivo = String(record?.motivo_consulta ?? record?.motivoConsulta ?? "—");
-          const diagnostico = String(record?.diagnostico_principal ?? record?.diagnostico ?? "—");
-          const tratamiento = String(record?.plan_tratamiento ?? record?.tratamiento ?? "—");
+          const fecha = formatDateTime(record?.fecha ?? record?.fecha_consulta ?? record?.fechaConsulta ?? record?.creado_en);
+          const motivo = String(record?.motivoConsulta ?? record?.motivo_consulta ?? "").trim() || "—";
+          const diagnostico = toTextArray(record?.diagnostico ?? record?.diagnostico_principal).join(", ") || "—";
+          const tratamiento = String(record?.tratamiento ?? record?.plan_tratamiento ?? "").trim() || "—";
           return [fecha, motivo, diagnostico, tratamiento];
         });
 
         autoTable(pdf, {
           startY: 44,
           head: [["Fecha", "Consulta", "Diagnóstico", "Tratamiento"]],
-          body: rows.length > 0 ? rows : [["—", "Sin consultas registradas", "—", "—"]],
+          body: rows,
           theme: "grid",
           styles: { font: "helvetica", fontSize: 8.5, textColor: [51, 65, 85] },
           headStyles: { fillColor: [45, 106, 159], textColor: [255, 255, 255] },
@@ -681,15 +749,13 @@ export default function DashboardPage() {
       }
 
       if (supportSubtype === "datos") {
-        const fullName = patient
-          ? `${patient?.nombre ?? ""} ${patient?.apellidos ?? ""}`.trim() || patientName
-          : patientName;
+        const fullName = patientName;
 
         const demographics = [
           ["Nombre", fullName],
           ["Identificación", String(patient?.cedula ?? "—")],
           ["Sexo", String(patient?.sexo ?? "—")],
-          ["Edad", patient?.edad ? `${patient.edad} años` : "—"],
+          ["Edad", getPatientAge(patient)],
           ["Fecha de nacimiento", formatDateTime(patient?.fechaNacimiento ?? patient?.fecha_nacimiento)],
           ["Número de expediente", String(patient?.numero_expediente ?? "—")],
         ];
@@ -971,7 +1037,7 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Generar documento de apoyo</DialogTitle>
             <DialogDescription>
-              Tipo: Clínico · Alcance: Por paciente. Seleccione un subtipo y luego el paciente con expediente.
+              Tipo: Clínico · Alcance: Por paciente. Seleccione un subtipo y luego el paciente.
             </DialogDescription>
           </DialogHeader>
 
@@ -999,14 +1065,14 @@ export default function DashboardPage() {
 
             {supportSubtype && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Pacientes con expediente</p>
-                {patientsWithRecords.length === 0 ? (
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Pacientes</p>
+                {supportPatients.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
-                    No hay pacientes con expediente disponible.
+                    Aún no hay pacientes registrados, por lo que no hay datos para generar un documento de apoyo clínico.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-                    {patientsWithRecords.map((item) => (
+                    {supportPatients.map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -1022,7 +1088,9 @@ export default function DashboardPage() {
                         )}
                       >
                         <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-500">ID expediente: {item.id}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.patient?.cedula ? `Cédula: ${item.patient.cedula}` : "Sin cédula registrada"}
+                        </p>
                       </button>
                     ))}
                   </div>
@@ -1030,7 +1098,13 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {supportSubtype && selectedSupportPatient && (
+            {supportSubtype && selectedSupportPatient && supportDataIssue && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                {supportDataIssue}
+              </div>
+            )}
+
+            {supportSubtype && selectedSupportPatient && !supportDataIssue && (
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
                 Se generará: <span className="font-semibold">{getClinicalSubtypeLabel(supportSubtype)}</span> para <span className="font-semibold">{selectedSupportPatient.name}</span>.
                 {supportSubtype === "hoja_evolucion" && (
