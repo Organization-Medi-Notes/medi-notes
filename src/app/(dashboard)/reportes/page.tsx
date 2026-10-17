@@ -411,6 +411,18 @@ export default function ReportsPage() {
 
   const appointmentRangeInvalid = appointmentRangeStart && appointmentRangeEnd ? appointmentRangeStart > appointmentRangeEnd : false;
 
+  // Motivo por el que no se puede exportar el reporte de citas (null = se puede exportar).
+  const appointmentsExportBlockedReason = loading
+    ? null
+    : appointmentRangeInvalid
+    ? "La fecha inicial no puede ser mayor que la fecha final."
+    : appointmentRows.length === 0
+    ? "Sin datos: no hay citas registradas en el periodo seleccionado. Ajuste las fechas para poder exportar el reporte."
+    : null;
+
+  const hasAdministrativeData = appointmentRows.length > 0;
+  const hasClinicalData = clinicalRows.length > 0;
+
   const hasInvalidRange = startDate && endDate ? startDate > endDate : false;
 
   const handleExportPdf = () => {
@@ -503,6 +515,27 @@ export default function ReportsPage() {
       description: "El documento PDF se descargó correctamente.",
     });
   };
+
+  function getClinicalRowMissingDataReason(row: ClinicalExpedienteRow, subtype: ClinicalSubtype): string | null {
+    if (subtype === "hoja_evolucion" && row.totalConsultas === 0) {
+      return "Este paciente aún no tiene consultas registradas, por lo que no hay datos para generar la hoja de evolución.";
+    }
+
+    if (subtype === "historia_resumida") {
+      const patient = row.patient as any;
+      const hasBackground = Boolean(
+        String(patient?.antecedentesPersonales ?? patient?.antecedentes_personales ?? "").trim() ||
+        String(patient?.antecedentesFamiliares ?? patient?.antecedentes_familiares ?? "").trim() ||
+        toStringArray(patient?.alergias).length > 0 ||
+        toStringArray(patient?.medicamentosActuales ?? patient?.medicamentos_actuales).length > 0
+      );
+      if (!hasBackground) {
+        return "Este paciente aún no tiene antecedentes, alergias ni medicamentos registrados, por lo que no hay datos para generar la historia clínica resumida.";
+      }
+    }
+
+    return null;
+  }
 
   const handleExportAppointmentsPdf = () => {
     if (appointmentRangeInvalid) {
@@ -654,6 +687,12 @@ export default function ReportsPage() {
   const handleExportClinicalRecordDoc = (row: ClinicalExpedienteRow, subtype: ClinicalSubtype): boolean => {
     if (!row) {
       setSupportDocError("No se encontró el expediente seleccionado.");
+      return false;
+    }
+
+    const missingDataReason = getClinicalRowMissingDataReason(row, subtype);
+    if (missingDataReason) {
+      setSupportDocError(missingDataReason);
       return false;
     }
 
@@ -845,6 +884,7 @@ export default function ReportsPage() {
                   type="button"
                   variant={supportPath === "administrativo" ? "default" : "outline"}
                   className={cn("h-auto py-3 text-sm justify-start", supportPath === "administrativo" && "bg-accent hover:bg-accent/90 text-white")}
+                  disabled={!hasAdministrativeData}
                   onClick={() => {
                     setSupportPath("administrativo");
                     setSupportDocError("");
@@ -856,6 +896,7 @@ export default function ReportsPage() {
                   type="button"
                   variant={supportPath === "clinico" ? "default" : "outline"}
                   className={cn("h-auto py-3 text-sm justify-start", supportPath === "clinico" && "bg-accent hover:bg-accent/90 text-white")}
+                  disabled={!hasClinicalData}
                   onClick={() => {
                     setSupportPath("clinico");
                     setSupportDocError("");
@@ -864,7 +905,20 @@ export default function ReportsPage() {
                   Clínico
                 </Button>
               </div>
+              {(!hasAdministrativeData || !hasClinicalData) && (hasAdministrativeData || hasClinicalData) && (
+                <p className="text-xs text-amber-700 mt-2">
+                  {!hasAdministrativeData
+                    ? "Administrativo no está disponible: no hay citas registradas en el periodo seleccionado."
+                    : "Clínico no está disponible: aún no hay pacientes registrados."}
+                </p>
+              )}
             </div>
+
+            {!hasAdministrativeData && !hasClinicalData && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                No se cuenta con datos para generar el documento de apoyo: no hay citas en el periodo seleccionado ni pacientes registrados.
+              </div>
+            )}
 
             {supportPath === "administrativo" && (
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
@@ -903,7 +957,7 @@ export default function ReportsPage() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Expedientes disponibles</p>
                     {clinicalRows.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
-                        No hay expedientes disponibles.
+                        Aún no hay pacientes registrados, por lo que no hay datos para generar un documento de apoyo clínico.
                       </div>
                     ) : (
                       <div className="rounded-xl border border-gray-200 overflow-hidden">
@@ -927,6 +981,7 @@ export default function ReportsPage() {
                               {clinicalRows.map((row) => {
                                 const record = row.latestConsulta;
                                 const patient = row.patient;
+                                const missingDataReason = getClinicalRowMissingDataReason(row, clinicalSubtype);
 
                                 const resumenHistoria = [
                                   `Antecedentes: ${String(patient?.antecedentesPersonales ?? patient?.antecedentes_personales ?? "—")}`,
@@ -961,6 +1016,8 @@ export default function ReportsPage() {
                                         type="button"
                                         variant="outline"
                                         size="sm"
+                                        disabled={Boolean(missingDataReason)}
+                                        title={missingDataReason ?? undefined}
                                         onClick={() => {
                                           const success = handleExportClinicalRecordDoc(row, clinicalSubtype);
                                           if (success) {
@@ -975,6 +1032,11 @@ export default function ReportsPage() {
                                         Exportar
                                       </Button>
                                       <p className="text-[10px] text-gray-400 mt-1">{row.totalConsultas} consultas</p>
+                                      {missingDataReason && (
+                                        <p className="text-[10px] text-amber-700 mt-1 max-w-[220px] ml-auto whitespace-normal">
+                                          Sin datos para este documento
+                                        </p>
+                                      )}
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -1055,10 +1117,18 @@ export default function ReportsPage() {
           </div>
         )}
         <div className="px-6 pb-6">
-          <Button variant="outline" onClick={handleExportAppointmentsPdf} disabled={loading || appointmentRangeInvalid || appointmentRows.length === 0}>
+          <Button
+            variant="outline"
+            onClick={handleExportAppointmentsPdf}
+            disabled={loading || Boolean(appointmentsExportBlockedReason)}
+            title={appointmentsExportBlockedReason ?? undefined}
+          >
             <Download className="w-4 h-4 mr-2" />
             Exportar reporte de citas
           </Button>
+          {appointmentsExportBlockedReason && !appointmentRangeInvalid && (
+            <p className="text-sm text-amber-700 mt-2">{appointmentsExportBlockedReason}</p>
+          )}
         </div>
       </Card>
 
