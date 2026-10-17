@@ -1,0 +1,182 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para Medi Notes.
+//
+// Principio: nadie accede a nada sin iniciar sesión y cada persona solo ve y modifica
+// lo que le pertenece. Los datos clínicos pertenecen al médico (medico_id / creado_por) o
+// cuelgan de un paciente o una cita que le pertenece. La colección "usuarios" solo la ve
+// cada persona (su propio documento) o un administrador, y nadie puede asignarse a sí
+// mismo el rol de administrador.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funciones auxiliares ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'administrador';
+    }
+
+    // El paciente existe y pertenece a la persona con sesión iniciada.
+    function patientOwned(patientId) {
+      return signedIn()
+        && patientId is string
+        && patientId.size() > 0
+        && exists(/databases/$(database)/documents/pacientes/$(patientId))
+        && get(/databases/$(database)/documents/pacientes/$(patientId)).data.medico_id == request.auth.uid;
+    }
+
+    // La cita existe y pertenece a la persona con sesión iniciada.
+    function appointmentOwned(appointmentId) {
+      return signedIn()
+        && appointmentId is string
+        && appointmentId.size() > 0
+        && exists(/databases/$(database)/documents/citas/$(appointmentId))
+        && get(/databases/$(database)/documents/citas/$(appointmentId)).data.medico_id == request.auth.uid;
+    }
+
+    // ---------- Usuarios y configuración ----------
+
+    match /usuarios/{userId} {
+      // Cada persona lee su propio documento; un administrador puede leer cualquiera.
+      allow get: if signedIn() && (request.auth.uid == userId || isAdmin());
+      // Listar todos los usuarios solo está permitido a un administrador.
+      allow list: if isAdmin();
+      // Al registrarse, la persona solo puede crear su propio documento y siempre como doctor.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.rol == 'doctor'
+        && request.resource.data.activo == true;
+      // Cada persona actualiza su propio documento, pero no su rol ni su estado.
+      // Un administrador puede cambiar el rol y el estado de cualquier usuario.
+      allow update: if signedIn() && (
+        (request.auth.uid == userId
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol', 'activo', 'uid', 'email']))
+        || isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    match /configuracion/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // ---------- Control de intentos de inicio de sesión ----------
+    // Se consulta antes de iniciar sesión, por eso permite leer un documento puntual (nunca
+    // listar). Solo se puede sumar un intento a la vez y el bloqueo no puede superar 15 minutos.
+    // Reiniciar el contador solo lo puede hacer la persona dueña del correo ya autenticada.
+
+    match /intentos_login/{emailKey} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.resource.data.keys().hasOnly(['intentosFallidos', 'bloqueadoHasta'])
+        && request.resource.data.intentosFallidos == 1
+        && request.resource.data.bloqueadoHasta == null;
+      allow update: if request.resource.data.keys().hasOnly(['intentosFallidos', 'bloqueadoHasta'])
+        && (
+          (signedIn()
+            && request.auth.token.email != null
+            && request.auth.token.email.lower() == emailKey
+            && request.resource.data.intentosFallidos == 0
+            && request.resource.data.bloqueadoHasta == null)
+          ||
+          (request.resource.data.intentosFallidos == resource.data.intentosFallidos + 1
+            && (request.resource.data.bloqueadoHasta == null
+                || (request.resource.data.bloqueadoHasta is timestamp
+                    && request.resource.data.bloqueadoHasta <= request.time + duration.value(15, 'm'))))
+        );
+      allow delete: if false;
+    }
+
+    // Registro de auditoría: cualquiera puede agregar un evento de inicio de sesión, pero
+    // nadie puede modificarlo ni borrarlo, y solo un administrador puede leerlo.
+    match /auditorias/{eventId} {
+      allow create: if request.resource.data.keys().hasOnly(['email', 'evento', 'estado', 'detalle', 'fecha'])
+        && request.resource.data.email is string
+        && request.resource.data.evento is string
+        && request.resource.data.estado is string
+        && request.resource.data.detalle is string;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------- Datos clínicos del médico ----------
+
+    match /pacientes/{patientId} {
+      allow read: if signedIn() && resource.data.medico_id == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.medico_id == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.medico_id == request.auth.uid
+        && request.resource.data.medico_id == request.auth.uid;
+      allow delete: if signedIn() && resource.data.medico_id == request.auth.uid;
+    }
+
+    match /citas/{appointmentId} {
+      allow read: if signedIn()
+        && (resource.data.medico_id == request.auth.uid || patientOwned(resource.data.pacienteId));
+      allow create: if signedIn()
+        && request.resource.data.medico_id == request.auth.uid
+        && patientOwned(request.resource.data.pacienteId);
+      allow update: if signedIn()
+        && resource.data.medico_id == request.auth.uid
+        && request.resource.data.medico_id == request.auth.uid;
+      allow delete: if signedIn() && resource.data.medico_id == request.auth.uid;
+    }
+
+    match /consultas/{consultaId} {
+      allow read: if patientOwned(resource.data.pacienteId);
+      allow create: if patientOwned(request.resource.data.pacienteId);
+      allow update, delete: if patientOwned(resource.data.pacienteId);
+    }
+
+    match /documentos/{documentId} {
+      allow read: if patientOwned(resource.data.pacienteId);
+      allow create: if patientOwned(request.resource.data.pacienteId);
+      allow update, delete: if patientOwned(resource.data.pacienteId);
+    }
+
+    match /formularios_paciente/{responseId} {
+      // Se aceptan también los nombres antiguos del campo del paciente (patientId, paciente_id),
+      // que la pantalla de expediente consulta por compatibilidad con datos anteriores.
+      allow read: if patientOwned(resource.data.pacienteId)
+        || patientOwned(resource.data.get('patientId', ''))
+        || patientOwned(resource.data.get('paciente_id', ''));
+      allow create: if patientOwned(request.resource.data.pacienteId);
+      allow update, delete: if patientOwned(resource.data.pacienteId);
+    }
+
+    match /formularios_citas/{assignmentId} {
+      allow read: if appointmentOwned(resource.data.citaId);
+      allow create: if appointmentOwned(request.resource.data.citaId);
+      allow update, delete: if appointmentOwned(resource.data.citaId);
+    }
+
+    match /formularios_clinicos/{formId} {
+      allow read: if signedIn() && resource.data.creado_por == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.creado_por == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.creado_por == request.auth.uid
+        && request.resource.data.creado_por == request.auth.uid;
+      allow delete: if signedIn() && resource.data.creado_por == request.auth.uid;
+    }
+
+    match /expedientes/{recordId} {
+      allow read: if signedIn() && resource.data.medico_id == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.medico_id == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.medico_id == request.auth.uid
+        && request.resource.data.medico_id == request.auth.uid;
+      allow delete: if signedIn() && resource.data.medico_id == request.auth.uid;
+    }
+
+    // Cualquier otra colección queda cerrada.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

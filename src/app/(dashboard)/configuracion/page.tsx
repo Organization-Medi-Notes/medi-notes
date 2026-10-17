@@ -160,8 +160,10 @@ loadCurrentUserRole();
   }, []);
 
   useEffect(() => {
-  loadUsers();
-}, []);
+  if (currentUserRole === "administrador") {
+    loadUsers();
+  }
+}, [currentUserRole]);
 
   const loadUsers = async () => {
   setLoadingUsers(true);
