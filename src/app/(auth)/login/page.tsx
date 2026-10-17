@@ -15,7 +15,7 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/config";
@@ -31,27 +31,23 @@ export default function LoginPage() {
   const MAX_FAILED_ATTEMPTS = 3;
   const LOCK_TIME_MINUTES = 5;
 
-  const getUserProfileByEmail = async (email: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const usersRef = collection(db, "usuarios");
-    const userSnapshot = await getDocs(usersRef);
+  // Los intentos fallidos se guardan en "intentos_login" (un documento por correo) para poder
+  // consultarlos antes de iniciar sesión sin exponer la colección "usuarios".
+  const getLoginAttempts = async (email: string) => {
+    if (!email || email.includes("/")) return null;
 
-    const userDoc = userSnapshot.docs.find((docSnap) => {
-      const userEmail = docSnap.data().email;
+    try {
+      const ref = doc(db, "intentos_login", email);
+      const snap = await getDoc(ref);
 
-      return (
-        typeof userEmail === "string" &&
-        userEmail.trim().toLowerCase() === normalizedEmail
-      );
-    });
-
-    if (!userDoc) return null;
-
-    return {
-      id: userDoc.id,
-      ref: userDoc.ref,
-      data: userDoc.data(),
-    };
+      return {
+        ref,
+        data: snap.exists() ? snap.data() : null,
+      };
+    } catch (error) {
+      console.error("Error consultando intentos de inicio de sesión:", error);
+      return null;
+    }
   };
 
   const registrarEventoAuditoria = async (
@@ -123,10 +119,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const profile = await getUserProfileByEmail(normalizedEmail);
+      const attempts = await getLoginAttempts(normalizedEmail);
 
-      if (profile) {
-        const blockedUntil = profile.data.bloqueadoHasta;
+      if (attempts?.data) {
+        const blockedUntil = attempts.data.bloqueadoHasta;
 
         if (blockedUntil) {
           const blockDate = blockedUntil.toDate
@@ -183,9 +179,18 @@ export default function LoginPage() {
 
       await updateDoc(userRef, {
         ultimoAcceso: new Date(),
-        intentosFallidos: 0,
-        bloqueadoHasta: null,
       });
+
+      if (attempts?.data) {
+        try {
+          await updateDoc(attempts.ref, {
+            intentosFallidos: 0,
+            bloqueadoHasta: null,
+          });
+        } catch (error) {
+          console.error("Error reiniciando intentos de inicio de sesión:", error);
+        }
+      }
 
       await registrarEventoAuditoria(
   normalizedEmail,
@@ -201,21 +206,31 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (error) {
-      const profile = await getUserProfileByEmail(normalizedEmail);
+      const attempts = await getLoginAttempts(normalizedEmail);
 
-      if (profile) {
-        const currentAttempts = profile.data.intentosFallidos ?? 0;
-        const newAttempts = currentAttempts + 1;
+      if (attempts) {
+        const newAttempts = (attempts.data?.intentosFallidos ?? 0) + 1;
+        const shouldBlock = newAttempts >= MAX_FAILED_ATTEMPTS;
+        const blockedUntil = new Date();
+        blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
 
-        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
-          const blockedUntil = new Date();
-          blockedUntil.setMinutes(blockedUntil.getMinutes() + LOCK_TIME_MINUTES);
+        try {
+          if (attempts.data) {
+            await updateDoc(attempts.ref, {
+              intentosFallidos: newAttempts,
+              bloqueadoHasta: shouldBlock ? blockedUntil : null,
+            });
+          } else {
+            await setDoc(attempts.ref, {
+              intentosFallidos: 1,
+              bloqueadoHasta: null,
+            });
+          }
+        } catch (updateError) {
+          console.error("Error registrando intento fallido:", updateError);
+        }
 
-          await updateDoc(profile.ref, {
-            intentosFallidos: newAttempts,
-            bloqueadoHasta: blockedUntil,
-          });
-
+        if (shouldBlock) {
           await registrarEventoAuditoria(
   normalizedEmail,
   "LOGIN",
@@ -232,10 +247,6 @@ export default function LoginPage() {
 
           return;
         }
-
-        await updateDoc(profile.ref, {
-          intentosFallidos: newAttempts,
-        });
       }
 
       await registrarEventoAuditoria(

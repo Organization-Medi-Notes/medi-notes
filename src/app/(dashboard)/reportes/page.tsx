@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import {
   BarChart,
@@ -255,8 +255,21 @@ export default function ReportsPage() {
           medicalRecordService.getAll(),
         ]);
 
-        const consultasSnap = await getDocs(collection(db, "consultas"));
-        const consultasRows = consultasSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+        // Las consultas se leen por lotes de 10 pacientes del médico: las reglas de seguridad comprueban el dueño de
+        // cada paciente del filtro y Firestore permite como máximo 10 comprobaciones por consulta.
+        const patientIds = pats.map((patient: any) => String(patient.id));
+        const patientIdBatches: string[][] = [];
+        for (let i = 0; i < patientIds.length; i += 10) {
+          patientIdBatches.push(patientIds.slice(i, i + 10));
+        }
+        const consultasSnaps = await Promise.all(
+          patientIdBatches.map((batch) =>
+            getDocs(query(collection(db, "consultas"), where("pacienteId", "in", batch)))
+          )
+        );
+        const consultasRows = consultasSnaps.flatMap((snap) =>
+          snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any))
+        );
 
         setAppointments(apts);
         setPatients(pats);

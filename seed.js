@@ -25,9 +25,10 @@
  * CONFIGURACIÓN:
  * - Cambiá las constantes de la sección "CONFIGURACIÓN" para controlar cuántos
  *   datos de cada tipo se crean. Poné 0 para omitir ese tipo de dato.
- * - Los datos se crean para el médico indicado en DOCTOR_ID. Tiene que ser el
- *   UID del usuario con el que iniciás sesión; si no, no vas a ver nada en la
- *   aplicación. También se puede indicar con la variable SEED_DOCTOR_ID.
+ * - Los datos se crean para la cuenta con la que se inicia sesión: indicala con
+ *   las variables de entorno SEED_EMAIL y SEED_PASSWORD. Las reglas de seguridad
+ *   de Firestore solo dejan escribir datos propios, así que el script inicia
+ *   sesión como esa cuenta y usa su UID.
  *
  * NOTAS:
  * - Si corrés el seed varias veces seguidas se acumulan datos (por ejemplo,
@@ -44,14 +45,17 @@
  * - Tener un archivo .env en la raíz del proyecto con las variables de Firebase
  * - Tener instalado dotenv: npm install dotenv
  *
- * CÓMO CORRER:
- * node seed.js
+ * CÓMO CORRER (PowerShell):
+ *   $env:SEED_EMAIL="correo@ejemplo.com"; $env:SEED_PASSWORD="contraseña"; node seed.js
+ * (Git Bash / Linux / Mac):
+ *   SEED_EMAIL=correo@ejemplo.com SEED_PASSWORD=contraseña node seed.js
  */
 
 require("dotenv").config({ path: ".env" });
 
 const { randomUUID } = require("crypto");
 const { initializeApp } = require("firebase/app");
+const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore, collection, addDoc, doc, setDoc, Timestamp } = require("firebase/firestore");
 
 const firebaseConfig = {
@@ -66,7 +70,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const DOCTOR_ID = process.env.SEED_DOCTOR_ID || "9qYah3CPYOfotk8zhiMqGYgnm112";
+// UID del médico: se obtiene al iniciar sesión con SEED_EMAIL / SEED_PASSWORD (ver iniciarSesion).
+let DOCTOR_ID = "";
+
+async function iniciarSesion() {
+  const email = process.env.SEED_EMAIL;
+  const password = process.env.SEED_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error("Faltan las variables de entorno SEED_EMAIL y SEED_PASSWORD con las credenciales de la cuenta que se va a poblar.");
+  }
+
+  const credencial = await signInWithEmailAndPassword(getAuth(app), email, password);
+  DOCTOR_ID = credencial.user.uid;
+  console.log(`Sesión iniciada como ${email}`);
+}
 
 // ══════════════════════════════════════════════════════════════
 //  CONFIGURACIÓN: cambiá estos números según lo que necesitás
@@ -838,7 +856,7 @@ function validarConfiguracion() {
     throw new Error("FORMULARIOS_COMO_PLANTILLA + FORMULARIOS_ARCHIVADOS no pueden superar la cantidad de formularios que se van a crear.");
   }
   if (!DOCTOR_ID) {
-    throw new Error("Falta DOCTOR_ID: indicá el UID del médico en el archivo o con la variable SEED_DOCTOR_ID.");
+    throw new Error("No se pudo determinar el UID del médico: la sesión no se inició correctamente.");
   }
   if (CANTIDAD_FORMULARIOS > CATALOGO_FORMULARIOS.length) {
     console.log(`Aviso: el catálogo tiene ${CATALOGO_FORMULARIOS.length} formularios; se crearán solo esos.\n`);
@@ -846,6 +864,7 @@ function validarConfiguracion() {
 }
 
 async function seed() {
+  await iniciarSesion();
   validarConfiguracion();
 
   console.log(`Médico (DOCTOR_ID): ${DOCTOR_ID}`);

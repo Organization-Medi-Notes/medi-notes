@@ -5,7 +5,7 @@ import { FileText, Search, Filter, FileSearch, Loader2, User } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
 import { useRouter } from "next/navigation";
 
 interface PatientRecord {
@@ -49,8 +49,13 @@ export default function MedicalRecordsPage() {
     async function loadRecords() {
       setLoading(true);
       try {
-        // 1. Traer todos los pacientes
-        const pacientesSnap = await getDocs(collection(db, "pacientes"));
+        // 1. Traer los pacientes del médico con sesión iniciada
+        const medicoId = auth.currentUser?.uid;
+        if (!medicoId) {
+          setRecords([]);
+          return;
+        }
+        const pacientesSnap = await getDocs(query(collection(db, "pacientes"), where("medico_id", "==", medicoId)));
         const pacientes = pacientesSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
         // 2. Para cada paciente traer sus consultas en paralelo
